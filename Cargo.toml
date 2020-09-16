@@ -1,0 +1,27 @@
+[package]
+name = "odcrawler-discovery"
+version = "0.1.0"
+authors = ["MCOfficer <mcofficer@gmx.de>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+shrust = "0.0.7"
+simplelog = "0.8"
+log = "0.4"
+structopt = "0.3"
+rand = "0.7"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+meilisearch-sdk = "0.3"
+bson = "1.1"
+tokio = "0.2.22"
+flate2 = "1.0"
+
+[dependencies.mongodb]
+version = "1.1"
+default-features = false
+features = ["sync"]

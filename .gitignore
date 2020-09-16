@@ -1,0 +1,6 @@
+/target
+.idea/
+OpenDirectoryDownloader/
+Scans/
+*.log
+data.ms/
