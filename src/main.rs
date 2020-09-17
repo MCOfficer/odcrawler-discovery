@@ -2,6 +2,7 @@
 extern crate log;
 
 use crate::db::Database;
+use anyhow::{Error, Result};
 use shrust::{Shell, ShellIO};
 use simplelog::{Config, LevelFilter, WriteLogger};
 use std::fs::File;
@@ -66,19 +67,54 @@ fn main() {
     shell.run_loop(&mut ShellIO::default());
 }
 
+trait Schedule {
+    fn name(&self) -> &str;
+    fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool>;
+}
+
+struct ProcessResults;
+impl Schedule for ProcessResults {
+    fn name(&self) -> &str {
+        "process results"
+    }
+
+    fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool, Error> {
+        scans::process_scans(opt, db)
+    }
+}
+
+struct ScanOpendirectory;
+impl Schedule for ScanOpendirectory {
+    fn name(&self) -> &str {
+        "scan opendirectory"
+    }
+
+    fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool, Error> {
+        scans::scan_opendirectories()
+    }
+}
+
 fn scheduler_loop(opt: Opt, mut db: Database) {
     info!("Started scheduler thread");
+
+    let schedule_tasks: [Box<dyn Schedule>; 2] =
+        [Box::new(ProcessResults {}), Box::new(ScanOpendirectory {})];
+
     loop {
         std::thread::sleep(Duration::from_secs(3));
 
-        let result = scans::process_scans(&opt, &mut db).unwrap_or_else(|e| {
-            error!("Error while processing results: {}", e);
-            true
-        });
-
-        if result {
-            continue;
+        for task in &schedule_tasks {
+            match task.run(&opt, &mut db) {
+                Ok(did_something) => {
+                    if did_something {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to run task '{}' due to error: \n{}", task.name(), e);
+                    break;
+                }
+            };
         }
-        scans::scan_opendirectories().unwrap();
     }
 }
