@@ -89,7 +89,7 @@ impl Schedule for ScanOpendirectory {
         "scan opendirectory"
     }
 
-    fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool, Error> {
+    fn run(&self, _: &Opt, _: &mut Database) -> Result<bool, Error> {
         scans::scan_opendirectories()
     }
 }

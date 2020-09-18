@@ -45,7 +45,7 @@ impl Database {
     pub fn save_scan_result(
         &mut self,
         scan_result: &ODScanResult,
-        files: &Vec<&ODScanFile>,
+        files: &[&ODScanFile],
     ) -> Result<()> {
         info!("Saving results");
         let document = doc! {"url": scan_result.root.url.clone()};

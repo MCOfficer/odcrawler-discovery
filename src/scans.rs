@@ -7,7 +7,7 @@ use flate2::read::GzDecoder;
 use mongodb::bson::doc;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -66,16 +66,24 @@ pub fn process_scans(opt: &Opt, db: &mut Database) -> Result<bool> {
     info!("Found {} files", files.len());
 
     db.save_scan_result(&scan_result, &files)?;
+    let opendirectory = scan_result.root.url.clone();
+    drop(files);
 
-    let mut links = vec![];
-    for res in db.get_links(&scan_result.root.url)? {
-        let doc = res?;
-        links.push(Link {
-            id: doc.get_object_id("_id").unwrap().to_string(),
-            url: doc.get_str("url").unwrap().to_string(),
-            size: doc.get_i64("size").unwrap() as u64,
-        });
-    }
+    let links = db
+        .get_links(&opendirectory)?
+        .filter_map(|res| match res {
+            Ok(doc) => Some(Link {
+                id: doc.get_object_id("_id").unwrap().to_string(),
+                url: doc.get_str("url").unwrap().to_string(),
+                size: doc.get_i64("size").unwrap() as u64,
+            }),
+            Err(e) => {
+                warn!("Failed to retrieve link from database: {}", e);
+                None
+            }
+        })
+        .collect();
+
     meili::add_links(opt, links)?;
 
     let mut processed_dir = chosen_file.parent().unwrap().to_path_buf();
