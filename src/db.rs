@@ -1,68 +1,76 @@
 use crate::scans::{ODScanFile, ODScanResult};
 use anyhow::Result;
-use bson::Document;
-use mongodb::bson::doc;
-use mongodb::options::ClientOptions;
-use mongodb::sync::Database as MongoDatabase;
-use mongodb::sync::{Client, Collection};
+use serde::{Deserialize, Serialize};
+use wither::bson::{doc, oid::ObjectId, Document};
+use wither::mongodb::options::ClientOptions;
+use wither::mongodb::*;
+use wither::prelude::*;
+use wither::ModelCursor;
+
+#[derive(Debug, Model, Serialize, Deserialize)]
+pub struct OpenDirectory {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub url: String,
+}
+
+#[derive(Debug, Model, Serialize, Deserialize)]
+pub struct Link {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub url: String,
+    pub size: u64,
+}
 
 #[derive(Clone)]
 pub struct Database {
-    pub mongo_client: Client,
-    pub db: MongoDatabase,
-    pub links: Collection,
-    pub opendirectories: Collection,
+    pub db: wither::mongodb::Database,
 }
 
 impl Database {
-    pub fn new() -> Result<Self> {
+    pub async fn new() -> Result<Self> {
         info!("Connecting to database");
         let mut options = ClientOptions::default();
         options.app_name = Some("odcrawler-discovery".to_string());
-        let mongo_client = Client::with_options(options)?;
-        let db = mongo_client.database("odcrawler-discovery");
-        let links = db.collection("links");
-        let opendirectories = db.collection("opendirectories");
+        let db = Client::with_options(options)?.database("odcrawler-discovery");
 
-        Ok(Self {
-            mongo_client,
-            db,
-            links,
-            opendirectories,
-        })
+        // Disabled for this version of wither
+        // OpenDirectory::sync(&client).await?;
+        // Link::sync(&client).await?;
+
+        Ok(Self { db })
     }
 
-    pub fn get_links(
-        &mut self,
-        opendirectory: &str,
-    ) -> std::result::Result<
-        impl Iterator<Item = std::result::Result<Document, mongodb::error::Error>>,
-        mongodb::error::Error,
-    > {
-        self.links.find(doc! {"opendirectory": opendirectory}, None)
+    pub async fn get_links(&mut self, opendirectory: &str) -> Result<ModelCursor<Link>> {
+        Ok(Model::find(&self.db, doc! {"url": opendirectory}, None).await?)
     }
 
-    pub fn save_scan_result(
+    pub async fn save_scan_result(
         &mut self,
         scan_result: &ODScanResult,
         files: &[&ODScanFile],
     ) -> Result<()> {
         info!("Saving results");
         let document = doc! {"url": scan_result.root.url.clone()};
-        if self
-            .opendirectories
-            .find_one(document.clone(), None)?
-            .is_none()
+
+        if OpenDirectory::find_one(&self.db, document, None)
+            .await?
+            .is_some()
         {
-            self.opendirectories.insert_one(document, None)?;
-        }
+            OpenDirectory {
+                id: None,
+                url: scan_result.root.url.clone(),
+            }
+            .save(&self.db, None)
+            .await?
+        };
 
         for chunk in files.chunks(1000) {
             let docs: Vec<Document> = chunk
                 .iter()
                 .map(|f| doc! {"url": f.url.clone(), "size": f.file_size, "opendirectory": scan_result.root.url.clone()})
                 .collect();
-            self.links.insert_many(docs, None)?;
+            Link::collection(&self.db).insert_many(docs, None).await?;
         }
 
         Ok(())

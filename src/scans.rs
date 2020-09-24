@@ -3,11 +3,12 @@ use crate::meili;
 use crate::meili::Link;
 use crate::Opt;
 use anyhow::Result;
+use async_std::stream::StreamExt;
 use flate2::read::GzDecoder;
-use mongodb::bson::doc;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::io::BufReader;
+use wither::mongodb::bson::doc;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -31,7 +32,7 @@ pub struct ODScanFile {
 }
 
 /// returns true if one has been processed
-pub fn process_scans(opt: &Opt, db: &mut Database) -> Result<bool> {
+pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<bool> {
     let mut files = vec![];
 
     for scan_dir in &opt.scan_dir {
@@ -65,24 +66,26 @@ pub fn process_scans(opt: &Opt, db: &mut Database) -> Result<bool> {
     let files = collect_files_recursive(&scan_result.root);
     info!("Found {} files", files.len());
 
-    db.save_scan_result(&scan_result, &files)?;
+    db.save_scan_result(&scan_result, &files).await?;
     let opendirectory = scan_result.root.url.clone();
     drop(files);
 
-    let links = db
-        .get_links(&opendirectory)?
+    let links: Vec<Link> = db
+        .get_links(&opendirectory)
+        .await?
         .filter_map(|res| match res {
             Ok(doc) => Some(Link {
-                id: doc.get_object_id("_id").unwrap().to_string(),
-                url: doc.get_str("url").unwrap().to_string(),
-                size: doc.get_i64("size").unwrap() as u64,
+                id: doc.id.unwrap().to_string(),
+                url: doc.url,
+                size: doc.size,
             }),
             Err(e) => {
                 warn!("Failed to retrieve link from database: {}", e);
                 None
             }
         })
-        .collect();
+        .collect()
+        .await;
 
     meili::add_links(opt, links)?;
 

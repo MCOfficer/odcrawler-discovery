@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate async_trait;
 
 use crate::db::Database;
 use anyhow::{Error, Result};
@@ -37,7 +39,8 @@ pub struct Opt {
     meili_key: String,
 }
 
-fn main() {
+#[async_std::main]
+async fn main() {
     WriteLogger::init(
         LevelFilter::Info,
         Config::default(),
@@ -52,11 +55,13 @@ fn main() {
     opt.scan_dir.push(odd_scan_dir);
     dbg!(&opt);
 
-    let db = db::Database::new().unwrap();
+    let db = db::Database::new().await.unwrap();
 
     let scheduler_db = db;
     let scheduler_opt = opt;
-    let _scheduler_handle = std::thread::spawn(|| scheduler_loop(scheduler_opt, scheduler_db));
+    let _scheduler_handle = std::thread::spawn(|| {
+        async_std::task::block_on(scheduler_loop(scheduler_opt, scheduler_db))
+    });
 
     let mut shell = Shell::new(());
     shell.new_command("add", "Adds an OD to the database", 1, |io, _, s| {
@@ -67,34 +72,37 @@ fn main() {
     shell.run_loop(&mut ShellIO::default());
 }
 
+#[async_trait]
 trait Schedule {
     fn name(&self) -> &str;
-    fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool>;
+    async fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool>;
 }
 
 struct ProcessResults;
+#[async_trait]
 impl Schedule for ProcessResults {
     fn name(&self) -> &str {
         "process results"
     }
 
-    fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool, Error> {
-        scans::process_scans(opt, db)
+    async fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool, Error> {
+        scans::process_scans(opt, db).await
     }
 }
 
 struct ScanOpendirectory;
+#[async_trait]
 impl Schedule for ScanOpendirectory {
     fn name(&self) -> &str {
         "scan opendirectory"
     }
 
-    fn run(&self, _: &Opt, _: &mut Database) -> Result<bool, Error> {
+    async fn run(&self, _: &Opt, _: &mut Database) -> Result<bool, Error> {
         scans::scan_opendirectories()
     }
 }
 
-fn scheduler_loop(opt: Opt, mut db: Database) {
+async fn scheduler_loop(opt: Opt, mut db: Database) {
     info!("Started scheduler thread");
 
     let schedule_tasks: [Box<dyn Schedule>; 2] =
@@ -104,7 +112,7 @@ fn scheduler_loop(opt: Opt, mut db: Database) {
         std::thread::sleep(Duration::from_secs(3));
 
         for task in &schedule_tasks {
-            match task.run(&opt, &mut db) {
+            match task.run(&opt, &mut db).await {
                 Ok(did_something) => {
                     if did_something {
                         break;
