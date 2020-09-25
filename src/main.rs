@@ -16,6 +16,7 @@ use structopt::StructOpt;
 mod db;
 mod meili;
 mod scans;
+mod check_links;
 
 #[derive(StructOpt, Debug, Clone)]
 pub struct Opt {

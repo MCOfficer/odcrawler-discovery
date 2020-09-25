@@ -1,5 +1,6 @@
 use crate::scans::{ODScanFile, ODScanResult};
 use anyhow::Result;
+use async_std::stream::StreamExt;
 use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
 use wither::bson::{doc, oid::ObjectId, Document};
@@ -13,6 +14,19 @@ pub struct OpenDirectory {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
     pub url: String,
+    pub unreachable: u16,
+}
+
+impl Migrating for OpenDirectory {
+    fn migrations() -> Vec<Box<dyn wither::Migration>> {
+        vec![Box::new(wither::IntervalMigration {
+            name: "add-times-unreachable".to_string(),
+            threshold: chrono::Utc.ymd(2020, 9, 28).and_hms(0, 0, 0),
+            filter: doc! {"unreachable": doc!{"$exists": false}},
+            set: Some(doc! {"unreachable": 0}),
+            unset: None,
+        })]
+    }
 }
 
 #[derive(Debug, Model, Serialize, Deserialize)]
@@ -20,17 +34,27 @@ pub struct Link {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
     pub url: String,
+    pub unreachable: u16,
 }
 
 impl Migrating for Link {
     fn migrations() -> Vec<Box<dyn wither::Migration>> {
-        vec![Box::new(wither::IntervalMigration {
-            name: "remove-filesize".to_string(),
-            threshold: chrono::Utc.ymd(2020, 9, 28).and_hms(0, 0, 0),
-            filter: doc! {"size": doc!{"$exists": true}},
-            set: None,
-            unset: Some(doc! {"size": ""}),
-        })]
+        vec![
+            Box::new(wither::IntervalMigration {
+                name: "remove-filesize".to_string(),
+                threshold: chrono::Utc.ymd(2020, 9, 28).and_hms(0, 0, 0),
+                filter: doc! {"size": doc!{"$exists": true}},
+                set: None,
+                unset: Some(doc! {"size": ""}),
+            }),
+            Box::new(wither::IntervalMigration {
+                name: "add-times-unreachable".to_string(),
+                threshold: chrono::Utc.ymd(2020, 9, 28).and_hms(0, 0, 0),
+                filter: doc! {"unreachable": doc!{"$exists": false}},
+                set: Some(doc! {"unreachable": 0}),
+                unset: None,
+            }),
+        ]
     }
 }
 
@@ -54,8 +78,17 @@ impl Database {
         Ok(Self { db })
     }
 
+    pub async fn get_random_opendirectory(&mut self) -> Result<OpenDirectory> {
+        let cursor: ModelCursor<OpenDirectory> = OpenDirectory::find(&self.db, None, None).await?;
+        let mut ods = cursor
+            .filter_map(|x| x.ok())
+            .collect::<Vec<OpenDirectory>>()
+            .await;
+        Ok(ods.remove((rand::random::<f64>() * ods.len() as f64).floor() as usize))
+    }
+
     pub async fn get_links(&mut self, opendirectory: &str) -> Result<ModelCursor<Link>> {
-        Ok(Model::find(&self.db, doc! {"url": opendirectory}, None).await?)
+        Ok(Link::find(&self.db, doc! {"url": opendirectory}, None).await?)
     }
 
     pub async fn save_scan_result(
@@ -73,6 +106,7 @@ impl Database {
             OpenDirectory {
                 id: None,
                 url: scan_result.root.url.clone(),
+                unreachable: 0,
             }
             .save(&self.db, None)
             .await?
@@ -81,7 +115,7 @@ impl Database {
         for chunk in files.chunks(1000) {
             let docs: Vec<Document> = chunk
                 .iter()
-                .map(|f| doc! {"url": f.url.clone(), "opendirectory": scan_result.root.url.clone()})
+                .map(|f| doc! {"url": f.url.clone(), "opendirectory": scan_result.root.url.clone(), "unreachable": 0})
                 .collect();
             Link::collection(&self.db).insert_many(docs, None).await?;
         }

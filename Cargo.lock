@@ -1615,12 +1615,14 @@ dependencies = [
  "flate2",
  "log",
  "meilisearch-sdk",
+ "parallel-stream",
  "rand",
  "serde",
  "serde_json",
  "shrust",
  "simplelog",
  "structopt",
+ "surf",
  "wither",
 ]
 
@@ -1683,6 +1685,16 @@ checksum = "d2cc1b4330bb29087e791ae2a5cf56be64fb8946a4ff5aec2ba11c6ca51f5d60"
 dependencies = [
  "log",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "parallel-stream"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73903933ca48ecbe6cb2f1e6f3e012691d1aa1198743b0778b53f9e0c2990f1f"
+dependencies = [
+ "async-std",
+ "pin-project-lite",
 ]
 
 [[package]]
