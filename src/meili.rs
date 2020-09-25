@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 pub struct Link {
     pub id: String,
     pub url: String,
-    pub size: u64,
 }
 
 impl Document for Link {

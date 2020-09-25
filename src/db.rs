@@ -1,5 +1,6 @@
 use crate::scans::{ODScanFile, ODScanResult};
 use anyhow::Result;
+use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
 use wither::bson::{doc, oid::ObjectId, Document};
 use wither::mongodb::options::ClientOptions;
@@ -19,7 +20,18 @@ pub struct Link {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
     pub url: String,
-    pub size: u64,
+}
+
+impl Migrating for Link {
+    fn migrations() -> Vec<Box<dyn wither::Migration>> {
+        vec![Box::new(wither::IntervalMigration {
+            name: "remove-filesize".to_string(),
+            threshold: chrono::Utc.ymd(2020, 9, 28).and_hms(0, 0, 0),
+            filter: doc! {"size": doc!{"$exists": true}},
+            set: None,
+            unset: Some(doc! {"size": ""}),
+        })]
+    }
 }
 
 #[derive(Clone)]
@@ -37,6 +49,7 @@ impl Database {
         // Disabled for this version of wither
         // OpenDirectory::sync(&client).await?;
         // Link::sync(&client).await?;
+        Link::migrate(&db).await?;
 
         Ok(Self { db })
     }
@@ -68,7 +81,7 @@ impl Database {
         for chunk in files.chunks(1000) {
             let docs: Vec<Document> = chunk
                 .iter()
-                .map(|f| doc! {"url": f.url.clone(), "size": f.file_size, "opendirectory": scan_result.root.url.clone()})
+                .map(|f| doc! {"url": f.url.clone(), "opendirectory": scan_result.root.url.clone()})
                 .collect();
             Link::collection(&self.db).insert_many(docs, None).await?;
         }

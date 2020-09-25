@@ -1611,6 +1611,7 @@ dependencies = [
  "anyhow",
  "async-std",
  "async-trait",
+ "chrono",
  "flate2",
  "log",
  "meilisearch-sdk",

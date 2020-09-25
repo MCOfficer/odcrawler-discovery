@@ -28,7 +28,6 @@ pub struct ODScanDirectory {
 #[serde(rename_all = "PascalCase")]
 pub struct ODScanFile {
     pub url: String,
-    pub file_size: u64,
 }
 
 /// returns true if one has been processed
@@ -77,7 +76,6 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<bool> {
             Ok(doc) => Some(Link {
                 id: doc.id.unwrap().to_string(),
                 url: doc.url,
-                size: doc.size,
             }),
             Err(e) => {
                 warn!("Failed to retrieve link from database: {}", e);
