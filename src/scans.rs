@@ -85,7 +85,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<bool> {
         .collect()
         .await;
 
-    meili::add_links(opt, links)?;
+    meili::add_links(opt, links).await?;
 
     let mut processed_dir = chosen_file.parent().unwrap().to_path_buf();
     processed_dir.push("processed");

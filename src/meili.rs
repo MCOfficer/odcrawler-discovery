@@ -18,17 +18,13 @@ impl Document for Link {
     }
 }
 
-pub fn add_links(opt: &Opt, links: Vec<Link>) -> Result<()> {
+pub async fn add_links(opt: &Opt, links: Vec<Link>) -> Result<()> {
     let client: Client = Client::new(&opt.meili_url, &opt.meili_key);
-    tokio::runtime::Builder::new()
-        .basic_scheduler()
-        .enable_all()
-        .build()?
-        .block_on(add_links_async(client, links))?;
+    add_links_async(client, links).await?;
     Ok(())
 }
 
-// No, you can't elide lifetimes here
+#[allow(clippy::needless_lifetimes)] // Can't elide lifetimes here
 async fn add_links_async<'a>(client: Client<'a>, links: Vec<Link>) -> Result<()> {
     let index = client.get_or_create("links").await?;
     info!("Adding {} documents to Meilisearch", links.len());

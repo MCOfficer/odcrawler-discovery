@@ -1621,7 +1621,6 @@ dependencies = [
  "shrust",
  "simplelog",
  "structopt",
- "tokio",
  "wither",
 ]
 
