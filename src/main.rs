@@ -4,19 +4,19 @@ extern crate log;
 extern crate async_trait;
 
 use crate::db::Database;
-use anyhow::{Error, Result};
+use anyhow::Result;
 use shrust::{Shell, ShellIO};
-use simplelog::{Config, LevelFilter, WriteLogger};
+use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
 use structopt::StructOpt;
 
+mod check_links;
 mod db;
 mod meili;
 mod scans;
-mod check_links;
 
 #[derive(StructOpt, Debug, Clone)]
 pub struct Opt {
@@ -44,7 +44,9 @@ pub struct Opt {
 async fn main() {
     WriteLogger::init(
         LevelFilter::Info,
-        Config::default(),
+        ConfigBuilder::new()
+            .add_filter_ignore_str("surf::middleware::logger")
+            .build(),
         File::create("odcrawler-discovery.log").unwrap(),
     )
     .unwrap();
@@ -76,7 +78,7 @@ async fn main() {
 #[async_trait]
 trait Schedule {
     fn name(&self) -> &str;
-    async fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool>;
+    async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()>;
 }
 
 struct ProcessResults;
@@ -86,7 +88,7 @@ impl Schedule for ProcessResults {
         "process results"
     }
 
-    async fn run(&self, opt: &Opt, db: &mut Database) -> Result<bool, Error> {
+    async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
         scans::process_scans(opt, db).await
     }
 }
@@ -98,31 +100,39 @@ impl Schedule for ScanOpendirectory {
         "scan opendirectory"
     }
 
-    async fn run(&self, _: &Opt, _: &mut Database) -> Result<bool, Error> {
+    async fn run(&self, _: &Opt, _: &mut Database) -> Result<()> {
         scans::scan_opendirectories()
+    }
+}
+
+struct CheckLinks;
+#[async_trait]
+impl Schedule for CheckLinks {
+    fn name(&self) -> &str {
+        "check links"
+    }
+
+    async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
+        check_links::check_opendirectory(opt, db).await
     }
 }
 
 async fn scheduler_loop(opt: Opt, mut db: Database) {
     info!("Started scheduler thread");
 
-    let schedule_tasks: [Box<dyn Schedule>; 2] =
-        [Box::new(ProcessResults {}), Box::new(ScanOpendirectory {})];
+    let schedule_tasks: [Box<dyn Schedule>; 3] = [
+        Box::new(ProcessResults),
+        Box::new(ScanOpendirectory),
+        Box::new(CheckLinks),
+    ];
 
     loop {
         std::thread::sleep(Duration::from_secs(3));
 
         for task in &schedule_tasks {
-            match task.run(&opt, &mut db).await {
-                Ok(did_something) => {
-                    if did_something {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to run task '{}' due to error: \n{}", task.name(), e);
-                    break;
-                }
+            if let Err(e) = task.run(&opt, &mut db).await {
+                error!("Failed to run task '{}' due to error: \n{}", task.name(), e);
+                break;
             };
         }
     }

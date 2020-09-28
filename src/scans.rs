@@ -30,8 +30,7 @@ pub struct ODScanFile {
     pub url: String,
 }
 
-/// returns true if one has been processed
-pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<bool> {
+pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     let mut files = vec![];
 
     for scan_dir in &opt.scan_dir {
@@ -49,7 +48,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<bool> {
     }
 
     if files.is_empty() {
-        return Ok(false);
+        return Ok(());
     }
 
     let chosen_file = files.choose(&mut rand::thread_rng()).unwrap();
@@ -95,7 +94,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<bool> {
     info!("Moving file to {}", processed_file.to_string_lossy());
     std::fs::rename(chosen_file, processed_file)?;
 
-    Ok(true)
+    Ok(())
 }
 
 fn collect_files_recursive(dir: &ODScanDirectory) -> Vec<&ODScanFile> {
@@ -111,8 +110,7 @@ fn collect_files_recursive(dir: &ODScanDirectory) -> Vec<&ODScanFile> {
     files
 }
 
-/// returns true if one has been processed
-pub fn scan_opendirectories() -> Result<bool> {
+pub fn scan_opendirectories() -> Result<()> {
     warn!("STUB: scan_opendirectories");
-    Ok(true)
+    Ok(())
 }

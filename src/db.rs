@@ -9,19 +9,31 @@ use wither::mongodb::*;
 use wither::prelude::*;
 use wither::ModelCursor;
 
-#[derive(Debug, Model, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OpenDirectory {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
     pub url: String,
-    pub unreachable: u16,
+    pub unreachable: i32,
+}
+
+impl Model for OpenDirectory {
+    const COLLECTION_NAME: &'static str = "opendirectories";
+
+    fn id(&self) -> Option<ObjectId> {
+        self.id.clone()
+    }
+
+    fn set_id(&mut self, id: ObjectId) {
+        self.id = Some(id)
+    }
 }
 
 impl Migrating for OpenDirectory {
     fn migrations() -> Vec<Box<dyn wither::Migration>> {
         vec![Box::new(wither::IntervalMigration {
             name: "add-times-unreachable".to_string(),
-            threshold: chrono::Utc.ymd(2020, 9, 28).and_hms(0, 0, 0),
+            threshold: chrono::Utc.ymd(2020, 9, 30).and_hms(0, 0, 0),
             filter: doc! {"unreachable": doc!{"$exists": false}},
             set: Some(doc! {"unreachable": 0}),
             unset: None,
@@ -29,12 +41,25 @@ impl Migrating for OpenDirectory {
     }
 }
 
-#[derive(Debug, Model, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Link {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
+    pub opendirectory: String,
     pub url: String,
-    pub unreachable: u16,
+    pub unreachable: i32,
+}
+
+impl Model for Link {
+    const COLLECTION_NAME: &'static str = "links";
+
+    fn id(&self) -> Option<ObjectId> {
+        self.id.clone()
+    }
+
+    fn set_id(&mut self, id: ObjectId) {
+        self.id = Some(id)
+    }
 }
 
 impl Migrating for Link {
@@ -73,13 +98,15 @@ impl Database {
         // Disabled for this version of wither
         // OpenDirectory::sync(&client).await?;
         // Link::sync(&client).await?;
+        OpenDirectory::migrate(&db).await?;
         Link::migrate(&db).await?;
 
         Ok(Self { db })
     }
 
     pub async fn get_random_opendirectory(&mut self) -> Result<OpenDirectory> {
-        let cursor: ModelCursor<OpenDirectory> = OpenDirectory::find(&self.db, None, None).await?;
+        let cursor: ModelCursor<OpenDirectory> =
+            OpenDirectory::find(&self.db, doc! {}, None).await?;
         let mut ods = cursor
             .filter_map(|x| x.ok())
             .collect::<Vec<OpenDirectory>>()
@@ -88,7 +115,7 @@ impl Database {
     }
 
     pub async fn get_links(&mut self, opendirectory: &str) -> Result<ModelCursor<Link>> {
-        Ok(Link::find(&self.db, doc! {"url": opendirectory}, None).await?)
+        Ok(Link::find(&self.db, doc! {"opendirectory": opendirectory}, None).await?)
     }
 
     pub async fn save_scan_result(
@@ -101,7 +128,7 @@ impl Database {
 
         if OpenDirectory::find_one(&self.db, document, None)
             .await?
-            .is_some()
+            .is_none()
         {
             OpenDirectory {
                 id: None,
