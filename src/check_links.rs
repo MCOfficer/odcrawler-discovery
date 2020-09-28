@@ -1,5 +1,5 @@
+use crate::db::OpenDirectory;
 use crate::db::{Database, Link};
-use crate::db:: OpenDirectory};
 use crate::{meili, Opt};
 use anyhow::Result;
 use async_std::prelude::*;
