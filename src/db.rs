@@ -67,14 +67,14 @@ impl Migrating for Link {
         vec![
             Box::new(wither::IntervalMigration {
                 name: "remove-filesize".to_string(),
-                threshold: chrono::Utc.ymd(2020, 9, 28).and_hms(0, 0, 0),
+                threshold: chrono::Utc.ymd(2020, 9, 30).and_hms(0, 0, 0),
                 filter: doc! {"size": doc!{"$exists": true}},
                 set: None,
                 unset: Some(doc! {"size": ""}),
             }),
             Box::new(wither::IntervalMigration {
                 name: "add-times-unreachable".to_string(),
-                threshold: chrono::Utc.ymd(2020, 9, 28).and_hms(0, 0, 0),
+                threshold: chrono::Utc.ymd(2020, 9, 30).and_hms(0, 0, 0),
                 filter: doc! {"unreachable": doc!{"$exists": false}},
                 set: Some(doc! {"unreachable": 0}),
                 unset: None,
