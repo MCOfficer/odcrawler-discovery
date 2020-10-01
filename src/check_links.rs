@@ -3,13 +3,14 @@ use crate::db::{Database, Link};
 use crate::{meili, Opt};
 use anyhow::Result;
 use async_std::prelude::*;
-use parallel_stream::prelude::*;
+use rayon::prelude::*;
+use std::time::Duration;
 use wither::Model;
 
 pub async fn check_opendirectory(opt: &Opt, db: &mut Database) -> Result<()> {
     let mut od = db.get_random_opendirectory().await?;
     info!("Checking {}", &od.url);
-    let is_reachable = link_is_reachable(&od.url, 15).await;
+    let is_reachable = link_is_reachable(&od.url, 15);
 
     if !is_reachable {
         info!("{} is unreachable", &od.url);
@@ -33,18 +34,15 @@ pub async fn check_opendirectory(opt: &Opt, db: &mut Database) -> Result<()> {
 
         info!("Checking {} links", links.len());
         links = links
-            .into_par_stream() // TODO: Fancy tree-structure scanning
-            .limit(8)
-            .map(move |mut l| async move {
-                if link_is_reachable(&l.url, 15).await {
+            .into_par_iter()
+            .update(|mut l| {
+                if link_is_reachable(&l.url, 15) {
                     l.unreachable = 0;
                 } else {
                     l.unreachable = l.unreachable.saturating_add(1);
                 };
-                l
             })
-            .collect()
-            .await;
+            .collect();
 
         for mut link in links {
             link.save(&db.db, None).await?;
@@ -72,14 +70,10 @@ async fn remove_dead_links(opt: &Opt, db: &mut Database, od: &OpenDirectory) -> 
     Ok(())
 }
 
-pub async fn link_is_reachable(link: &str, timeout_src: u64) -> bool {
+fn link_is_reachable(link: &str, timeout_src: u64) -> bool {
     debug!("Checking {}", link);
-    let request_fut = surf::head(link).send();
-    let timeout = std::time::Duration::from_secs(timeout_src);
-    if let Ok(res) = async_std::future::timeout(timeout, request_fut).await {
-        if let Ok(response) = res {
-            return response.status().is_success(); // TODO: Check for hashhackers 404s
-        }
-    }
-    false
+    let res = ureq::head(link)
+        .timeout(Duration::from_secs(timeout_src))
+        .call();
+    res.ok() || res.redirect() // TODO: Check hashhackers 404
 }
