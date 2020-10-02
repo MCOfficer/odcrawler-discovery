@@ -6,8 +6,20 @@ use futures::StreamExt;
 use std::time::Duration;
 use wither::Model;
 
-pub async fn check_opendirectory(opt: &Opt, db: &mut Database) -> Result<()> {
-    let mut od = db.get_random_opendirectory().await?;
+pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
+    info!("Checking ODs concurrently");
+    db.get_opendirectories()
+        .await?
+        .filter_map(|res| async { res.ok() })
+        .for_each_concurrent(8, |od| async {
+            if let Err(e) = check_opendirectory(&opt, &db, od).await {
+                error!("Error checking OD: {}", e);
+            };
+        })
+        .await;
+    Ok(())
+}
+pub async fn check_opendirectory(opt: &Opt, db: &Database, mut od: OpenDirectory) -> Result<()> {
     info!("Checking {}", &od.url);
     let is_reachable = link_is_reachable(&od.url, 15);
 
@@ -27,7 +39,7 @@ pub async fn check_opendirectory(opt: &Opt, db: &mut Database) -> Result<()> {
     Ok(())
 }
 
-async fn remove_od_links(opt: &Opt, db: &mut Database, od: &OpenDirectory) -> Result<()> {
+async fn remove_od_links(opt: &Opt, db: &Database, od: &OpenDirectory) -> Result<()> {
     info!("Removing links for OD {} from Meilisearch", od.url);
     db.get_links(&od.url)
         .await?

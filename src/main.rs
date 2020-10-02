@@ -113,7 +113,7 @@ impl Schedule for CheckLinks {
     }
 
     async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
-        check_links::check_opendirectory(opt, db).await
+        check_links::check_opendirectories(opt, db).await
     }
 }
 

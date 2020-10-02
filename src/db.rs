@@ -1,6 +1,5 @@
 use crate::scans::{ODScanFile, ODScanResult};
 use anyhow::Result;
-use async_std::stream::StreamExt;
 use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
 use wither::bson::{doc, oid::ObjectId, Document};
@@ -104,17 +103,11 @@ impl Database {
         Ok(Self { db })
     }
 
-    pub async fn get_random_opendirectory(&mut self) -> Result<OpenDirectory> {
-        let cursor: ModelCursor<OpenDirectory> =
-            OpenDirectory::find(&self.db, doc! {}, None).await?;
-        let mut ods = cursor
-            .filter_map(|x| x.ok())
-            .collect::<Vec<OpenDirectory>>()
-            .await;
-        Ok(ods.remove((rand::random::<f64>() * ods.len() as f64).floor() as usize))
+    pub async fn get_opendirectories(&self) -> Result<ModelCursor<OpenDirectory>> {
+        Ok(OpenDirectory::find(&self.db, doc! {}, None).await?)
     }
 
-    pub async fn get_links(&mut self, opendirectory: &str) -> Result<ModelCursor<Link>> {
+    pub async fn get_links(&self, opendirectory: &str) -> Result<ModelCursor<Link>> {
         Ok(Link::find(&self.db, doc! {"opendirectory": opendirectory}, None).await?)
     }
 
