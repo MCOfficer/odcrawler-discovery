@@ -71,15 +71,12 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     let links: Vec<Link> = db
         .get_links(&opendirectory)
         .await?
-        .filter_map(|res| match res {
-            Ok(doc) => Some(Link {
+        .filter_map(|res| {
+            let doc = res.ok()?;
+            Some(Link {
                 id: doc.id.unwrap().to_string(),
                 url: doc.url,
-            }),
-            Err(e) => {
-                warn!("Failed to retrieve link from database: {}", e);
-                None
-            }
+            })
         })
         .collect()
         .await;

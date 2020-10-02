@@ -1660,6 +1660,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "flate2",
+ "futures",
  "log",
  "meilisearch-sdk",
  "rand",

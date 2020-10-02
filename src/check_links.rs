@@ -1,9 +1,8 @@
+use crate::db::Database;
 use crate::db::OpenDirectory;
-use crate::db::{Database, Link};
 use crate::{meili, Opt};
 use anyhow::Result;
-use async_std::prelude::*;
-use rayon::prelude::*;
+use futures::StreamExt;
 use std::time::Duration;
 use wither::Model;
 
@@ -18,55 +17,28 @@ pub async fn check_opendirectory(opt: &Opt, db: &mut Database) -> Result<()> {
         od.save(&db.db, None).await?;
 
         if od.unreachable >= 5 {
-            remove_dead_links(opt, db, &od).await?;
+            remove_od_links(opt, db, &od).await?;
         }
     } else {
-        info!("{} is reachable, proceeding", &od.url);
+        info!("{} is reachable", &od.url);
         od.unreachable = 0;
         od.save(&db.db, None).await?;
-
-        let mut links: Vec<Link> = db
-            .get_links(&od.url)
-            .await?
-            .filter_map(|l| l.ok())
-            .collect()
-            .await;
-
-        info!("Checking {} links", links.len());
-        links = links
-            .into_par_iter()
-            .update(|mut l| {
-                if link_is_reachable(&l.url, 15) {
-                    l.unreachable = 0;
-                } else {
-                    l.unreachable = l.unreachable.saturating_add(1);
-                };
-            })
-            .collect();
-
-        for mut link in links {
-            link.save(&db.db, None).await?;
-        }
-
-        remove_dead_links(opt, db, &od).await?;
     }
     Ok(())
 }
 
-async fn remove_dead_links(opt: &Opt, db: &mut Database, od: &OpenDirectory) -> Result<()> {
-    let links: Vec<Link> = db
-        .get_links(&od.url)
+async fn remove_od_links(opt: &Opt, db: &mut Database, od: &OpenDirectory) -> Result<()> {
+    info!("Removing links for OD {} from Meilisearch", od.url);
+    db.get_links(&od.url)
         .await?
-        .filter_map(|l| l.ok())
-        .collect()
+        .filter_map(|l| async { Some(l.ok()?.id?.to_string()) })
+        .chunks(1000)
+        .for_each(|chunk| async move {
+            if let Err(e) = meili::remove_links(opt, chunk).await {
+                warn!("Failed to remove chunk from Meilisearch: {}", e)
+            }
+        })
         .await;
-    let to_remove: Vec<String> = links
-        .iter()
-        .filter(|l| l.unreachable >= 5 || od.unreachable >= 5)
-        .filter_map(|l| l.id.clone())
-        .map(|oid| oid.to_string())
-        .collect();
-    meili::remove_links(opt, to_remove).await?;
     Ok(())
 }
 
