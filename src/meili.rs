@@ -3,10 +3,12 @@ use anyhow::Result;
 use meilisearch_sdk::client::Client;
 use meilisearch_sdk::document::Document;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Link {
     pub id: String,
+    pub filename: String,
     pub url: String,
 }
 
@@ -14,6 +16,11 @@ impl From<db::Link> for Link {
     fn from(l: db::Link) -> Self {
         Self {
             id: l.id.unwrap().to_string(),
+            filename: PathBuf::from(&l.url)
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string(),
             url: l.url,
         }
     }

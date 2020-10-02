@@ -3,8 +3,9 @@ extern crate log;
 #[macro_use]
 extern crate async_trait;
 
-use crate::db::Database;
+use crate::db::{Database, Link};
 use anyhow::Result;
+use futures::StreamExt;
 use shrust::{Shell, ShellIO};
 use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use std::fs::File;
@@ -12,6 +13,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
 use structopt::StructOpt;
+use wither::bson::doc;
+use wither::Model;
 
 mod check_links;
 mod db;
@@ -60,8 +63,8 @@ async fn main() {
 
     let db = db::Database::new().await.unwrap();
 
-    let scheduler_db = db;
-    let scheduler_opt = opt;
+    let scheduler_db = db.clone();
+    let scheduler_opt = opt.clone();
     let _scheduler_handle = std::thread::spawn(|| {
         async_std::task::block_on(scheduler_loop(scheduler_opt, scheduler_db))
     });
@@ -72,7 +75,36 @@ async fn main() {
         warn!("STUB: add {} to DB", s[0]);
         Ok(())
     });
+    shell.new_command_noargs(
+        "export",
+        "Exports all links to Meilisearch",
+        move |io, _| {
+            let db_clone = db.clone();
+            let opt_clone = opt.clone();
+            if let Err(e) = async_std::task::block_on(export_all(&opt_clone, &db_clone)) {
+                writeln!(io, "Error while exporting links: {}", e)?;
+                error!("Error while exporting links: {}", e);
+            };
+            Ok(())
+        },
+    );
     shell.run_loop(&mut ShellIO::default());
+}
+
+pub async fn export_all(opt: &Opt, db: &Database) -> Result<()> {
+    info!("Exporting all links to Meilisearch");
+    let cursor = Link::find(&db.db, doc! {}, None).await?;
+    cursor
+        .filter_map(|l| async { l.ok() })
+        .map(|l| l.into())
+        .chunks(1000)
+        .for_each(|chunk| async {
+            if let Err(e) = meili::add_links(opt, chunk).await {
+                error!("Error adding links to Meilisearch: {}", e);
+            };
+        })
+        .await;
+    Ok(())
 }
 
 #[async_trait]

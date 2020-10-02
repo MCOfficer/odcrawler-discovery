@@ -73,10 +73,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
         .await?
         .filter_map(|res| {
             let doc = res.ok()?;
-            Some(Link {
-                id: doc.id.unwrap().to_string(),
-                url: doc.url,
-            })
+            Some(doc.into())
         })
         .collect()
         .await;
