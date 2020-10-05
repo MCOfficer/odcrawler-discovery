@@ -3,7 +3,7 @@ extern crate log;
 #[macro_use]
 extern crate async_trait;
 
-use crate::db::{Database, Link};
+use crate::db::Database;
 use anyhow::Result;
 use futures::StreamExt;
 use shrust::{Shell, ShellIO};
@@ -11,6 +11,7 @@ use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use structopt::StructOpt;
 use wither::bson::doc;
@@ -93,17 +94,32 @@ async fn main() {
 
 pub async fn export_all(opt: &Opt, db: &Database) -> Result<()> {
     info!("Exporting all links to Meilisearch");
-    let cursor = Link::find(&db.db, doc! {}, None).await?;
-    cursor
-        .filter_map(|l| async { l.ok() })
+
+    let ods: Vec<String> = db
+        .get_opendirectories(false)
+        .await?
+        .filter_map(|r| async { r.ok().map(|od| od.url) })
+        .collect()
+        .await;
+
+    let total = AtomicUsize::new(0);
+
+    db::Link::find(&db.db, doc! {}, None)
+        .await?
+        .filter_map(|l| async { l.ok().filter(|l| ods.contains(&l.opendirectory)) })
         .map(|l| l.into())
-        .chunks(1000)
-        .for_each(|chunk| async {
-            if let Err(e) = meili::add_links(opt, chunk).await {
+        .chunks(50_000)
+        .for_each_concurrent(2, |chunk| async {
+            let len = chunk.len();
+            if let Err(e) = meili::add_links(opt, chunk, false).await {
                 error!("Error adding links to Meilisearch: {}", e);
             };
+            total.fetch_add(len, Ordering::Relaxed);
         })
         .await;
+
+    info!("Exported {} documents", total.into_inner());
+
     Ok(())
 }
 

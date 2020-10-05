@@ -103,8 +103,13 @@ impl Database {
         Ok(Self { db })
     }
 
-    pub async fn get_opendirectories(&self) -> Result<ModelCursor<OpenDirectory>> {
-        Ok(OpenDirectory::find(&self.db, doc! {}, None).await?)
+    pub async fn get_opendirectories(&self, dead_ods: bool) -> Result<ModelCursor<OpenDirectory>> {
+        let doc = if dead_ods {
+            doc! {}
+        } else {
+            doc! { "unreachable": doc! { "$lt": 5} }
+        };
+        Ok(OpenDirectory::find(&self.db, doc, None).await?)
     }
 
     pub async fn get_links(&self, opendirectory: &str) -> Result<ModelCursor<Link>> {

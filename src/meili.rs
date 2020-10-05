@@ -2,8 +2,10 @@ use crate::{db, Opt};
 use anyhow::Result;
 use meilisearch_sdk::client::Client;
 use meilisearch_sdk::document::Document;
+use meilisearch_sdk::progress::Status::Processed;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Link {
@@ -34,9 +36,9 @@ impl Document for Link {
     }
 }
 
-pub async fn add_links(opt: &Opt, links: Vec<Link>) -> Result<()> {
+pub async fn add_links(opt: &Opt, links: Vec<Link>, wait_for_update: bool) -> Result<()> {
     let client = create_client(&opt);
-    add_links_async(client, links).await?;
+    add_links_async(client, links, wait_for_update).await?;
     Ok(())
 }
 pub async fn remove_links(opt: &Opt, ids: Vec<String>) -> Result<()> {
@@ -50,11 +52,31 @@ fn create_client(opt: &Opt) -> Client {
 }
 
 #[allow(clippy::needless_lifetimes)] // Can't elide lifetimes here
-async fn add_links_async<'a>(client: Client<'a>, links: Vec<Link>) -> Result<()> {
+async fn add_links_async<'a>(
+    client: Client<'a>,
+    links: Vec<Link>,
+    wait_for_update: bool,
+) -> Result<()> {
     let index = client.get_or_create("links").await?;
     info!("Adding {} documents to Meilisearch", links.len());
-    for batch in links.chunks(100) {
-        index.add_documents(batch, None).await?;
+    for batch in links.chunks(5_000) {
+        let progress = index.add_documents(batch, None).await?;
+
+        if wait_for_update {
+            loop {
+                let status_res = progress.get_status().await;
+                if status_res.is_ok() {
+                    if let Processed(status) = status_res? {
+                        if let Some(e) = status.error {
+                            error!("{}", e);
+                        }
+                        break;
+                    }
+                }
+                std::thread::sleep(Duration::from_secs(1));
+            }
+            info!("Indexed: {}", index.get_stats().await?.number_of_documents);
+        }
     }
     Ok(())
 }

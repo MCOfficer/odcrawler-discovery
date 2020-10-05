@@ -8,7 +8,7 @@ use wither::Model;
 
 pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
     info!("Checking ODs concurrently");
-    db.get_opendirectories()
+    db.get_opendirectories(true)
         .await?
         .filter_map(|res| async { res.ok() })
         .for_each_concurrent(8, |od| async {
