@@ -1,5 +1,6 @@
 use crate::{db, Opt};
 use anyhow::Result;
+use futures::StreamExt;
 use meilisearch_sdk::client::Client;
 use meilisearch_sdk::document::Document;
 use meilisearch_sdk::progress::Status::Processed;
@@ -34,6 +35,20 @@ impl Document for Link {
     fn get_uid(&self) -> &Self::UIDType {
         &self.id
     }
+}
+
+pub async fn add_links_from_db(opt: &Opt, db: &db::Database, od: &str) -> Result<()> {
+    db.get_links(&od)
+        .await?
+        .filter_map(|l| async { Some(l.ok()?.into()) })
+        .chunks(1000)
+        .for_each(|chunk| async move {
+            if let Err(e) = add_links(opt, chunk, false).await {
+                warn!("Failed to remove chunk from Meilisearch: {}", e)
+            }
+        })
+        .await;
+    Ok(())
 }
 
 pub async fn add_links(opt: &Opt, links: Vec<Link>, wait_for_update: bool) -> Result<()> {

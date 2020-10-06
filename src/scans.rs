@@ -68,17 +68,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     let opendirectory = scan_result.root.url.clone();
     drop(files);
 
-    let links: Vec<Link> = db
-        .get_links(&opendirectory)
-        .await?
-        .filter_map(|res| {
-            let doc = res.ok()?;
-            Some(doc.into())
-        })
-        .collect()
-        .await;
-
-    meili::add_links(opt, links, false).await?;
+    meili::add_links_from_db(opt, db, &opendirectory).await?;
 
     let mut processed_dir = chosen_file.parent().unwrap().to_path_buf();
     processed_dir.push("processed");

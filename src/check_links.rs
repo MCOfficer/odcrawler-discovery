@@ -26,12 +26,13 @@ pub async fn check_opendirectory(opt: &Opt, db: &Database, mut od: OpenDirectory
         od.unreachable = od.unreachable.saturating_add(1);
         od.save(&db.db, None).await?;
 
-        if od.unreachable >= 5 {
+        if od.unreachable == 5 || (od.unreachable != 0 && od.unreachable % 50 == 0) {
             remove_od_links(opt, db, &od).await?;
         }
     } else {
         od.unreachable = 0;
         od.save(&db.db, None).await?;
+        meili::add_links_from_db(opt, db, &od.url).await?;
     }
     Ok(())
 }

@@ -46,7 +46,6 @@ pub struct Link {
     pub id: Option<ObjectId>,
     pub opendirectory: String,
     pub url: String,
-    pub unreachable: i32,
 }
 
 impl Model for Link {
@@ -77,6 +76,13 @@ impl Migrating for Link {
                 filter: doc! {"unreachable": doc!{"$exists": false}},
                 set: Some(doc! {"unreachable": 0}),
                 unset: None,
+            }),
+            Box::new(wither::IntervalMigration {
+                name: "remove-times-unreachable".to_string(),
+                threshold: chrono::Utc.ymd(2020, 10, 10).and_hms(0, 0, 0),
+                filter: doc! {"unreachable": doc!{"$exists": true}},
+                set: None,
+                unset: Some(doc! {"unreachable": ""}),
             }),
         ]
     }
