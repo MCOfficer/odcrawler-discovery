@@ -1,14 +1,11 @@
 use crate::db::Database;
 use crate::meili;
-use crate::meili::Link;
 use crate::Opt;
 use anyhow::Result;
-use async_std::stream::StreamExt;
 use flate2::read::GzDecoder;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::io::BufReader;
-use wither::mongodb::bson::doc;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
