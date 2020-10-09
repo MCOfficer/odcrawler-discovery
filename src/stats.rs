@@ -52,7 +52,7 @@ async fn create_stats(db: &db::Database, last_dump: Dump) -> Result<Stats> {
     let total_links = db::Link::collection(&db.db)
         .estimated_document_count(None)
         .await?;
-    let total_opendirectories = db::Link::collection(&db.db)
+    let total_opendirectories = db::OpenDirectory::collection(&db.db)
         .estimated_document_count(None)
         .await?;
     let alive_opendirectories = db::OpenDirectory::collection(&db.db)
