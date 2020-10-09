@@ -43,6 +43,10 @@ pub struct Opt {
     /// Meilisearch master key
     #[structopt(long, env = "MEILI_MASTER_KEY", default_value = "")]
     meili_key: String,
+
+    /// Directory for public files (e.g. stats.json)
+    #[structopt(long, default_value = ".")]
+    public_dir: PathBuf,
 }
 
 #[async_std::main]

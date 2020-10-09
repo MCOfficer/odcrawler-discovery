@@ -25,16 +25,26 @@ struct Dump {
     created: DateTime<Utc>,
 }
 
-pub async fn update_stats(_: &Opt, db: &Database, new_dump: bool) -> Result<()> {
-    let old_dump = match read_stats().ok() {
-        None => create_dump()?,
+pub async fn update_stats(opt: &Opt, db: &Database, with_new_dump: bool) -> Result<()> {
+    info!("Updating stats");
+    let old_dump = match read_stats(opt).ok() {
+        None => {
+            warn!("Stats file couldn't be read, creating a new dump");
+            create_dump()?
+        }
         Some(stats) => stats.last_dump,
     };
 
-    let dump = if new_dump { create_dump()? } else { old_dump };
+    let dump = if with_new_dump {
+        create_dump()?
+    } else {
+        old_dump
+    };
 
     let stats = create_stats(db, dump).await?;
-    save_stats(&stats)?;
+    save_stats(&opt, &stats)?;
+
+    info!("Stats saved");
     Ok(())
 }
 
@@ -57,16 +67,21 @@ async fn create_stats(db: &db::Database, last_dump: Dump) -> Result<Stats> {
     })
 }
 
-fn read_stats() -> Result<Stats> {
-    Ok(serde_json::from_reader(File::open("stats.json")?)?)
+fn read_stats(opt: &Opt) -> Result<Stats> {
+    let mut file = opt.public_dir.clone();
+    file.push("stats.json");
+    Ok(serde_json::from_reader(File::open(file)?)?)
 }
 
-fn save_stats(stats: &Stats) -> Result<()> {
-    serde_json::to_writer_pretty(File::create("stats.json")?, stats)?;
+fn save_stats(opt: &Opt, stats: &Stats) -> Result<()> {
+    let mut file = opt.public_dir.clone();
+    file.push("stats.json");
+    serde_json::to_writer_pretty(File::create(file)?, stats)?;
     Ok(())
 }
 
 fn create_dump() -> Result<Dump> {
+    info!("Creating dump");
     Ok(Dump {
         url: "STUB".to_string(),
         links: 0,
