@@ -21,6 +21,7 @@ mod check_links;
 mod db;
 mod meili;
 mod scans;
+mod stats;
 
 #[derive(StructOpt, Debug, Clone)]
 pub struct Opt {
@@ -181,13 +182,30 @@ impl Schedule for CheckLinks {
     }
 }
 
+struct UpdateStats;
+#[async_trait]
+impl Schedule for UpdateStats {
+    fn name(&self) -> &str {
+        "update stats"
+    }
+
+    fn frequency(&self) -> u16 {
+        3
+    }
+
+    async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
+        stats::update_stats(opt, db, false).await
+    }
+}
+
 async fn scheduler_loop(opt: Opt, mut db: Database) {
     info!("Started scheduler thread");
 
-    let schedule_tasks: [Box<dyn Schedule>; 3] = [
+    let schedule_tasks: [Box<dyn Schedule>; 4] = [
         Box::new(ProcessResults),
         Box::new(ScanOpendirectory),
         Box::new(CheckLinks),
+        Box::new(UpdateStats),
     ];
 
     let mut counter: u16 = 0;
