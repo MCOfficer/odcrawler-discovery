@@ -126,6 +126,10 @@ pub async fn export_all(opt: &Opt, db: &Database) -> Result<()> {
 #[async_trait]
 trait Schedule {
     fn name(&self) -> &str;
+    /// How often this should run:
+    /// 1 = run every time
+    /// 5 = run every 5 times
+    fn frequency(&self) -> u16;
     async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()>;
 }
 
@@ -134,6 +138,10 @@ struct ProcessResults;
 impl Schedule for ProcessResults {
     fn name(&self) -> &str {
         "process results"
+    }
+
+    fn frequency(&self) -> u16 {
+        2
     }
 
     async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
@@ -148,6 +156,10 @@ impl Schedule for ScanOpendirectory {
         "scan opendirectory"
     }
 
+    fn frequency(&self) -> u16 {
+        4
+    }
+
     async fn run(&self, _: &Opt, _: &mut Database) -> Result<()> {
         scans::scan_opendirectories()
     }
@@ -158,6 +170,10 @@ struct CheckLinks;
 impl Schedule for CheckLinks {
     fn name(&self) -> &str {
         "check links"
+    }
+
+    fn frequency(&self) -> u16 {
+        25
     }
 
     async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
@@ -174,14 +190,18 @@ async fn scheduler_loop(opt: Opt, mut db: Database) {
         Box::new(CheckLinks),
     ];
 
+    let mut counter: u16 = 0;
     loop {
         std::thread::sleep(Duration::from_secs(3));
 
         for task in &schedule_tasks {
-            if let Err(e) = task.run(&opt, &mut db).await {
-                error!("Failed to run task '{}' due to error: \n{}", task.name(), e);
-                break;
-            };
+            if counter % task.frequency() == 0 {
+                if let Err(e) = task.run(&opt, &mut db).await {
+                    error!("Failed to run task '{}' due to error: \n{}", task.name(), e);
+                    break;
+                };
+            }
         }
+        counter = counter.overflowing_add(1).0;
     }
 }
