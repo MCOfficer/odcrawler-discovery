@@ -19,6 +19,7 @@ pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
         .await;
     Ok(())
 }
+
 pub async fn check_opendirectory(opt: &Opt, db: &Database, mut od: OpenDirectory) -> Result<()> {
     let is_reachable = link_is_reachable(&od.url, 15);
 
@@ -53,13 +54,22 @@ async fn remove_od_links(opt: &Opt, db: &Database, od: &OpenDirectory) -> Result
 }
 
 async fn link_is_reachable(link: &str, timeout_src: u64) -> bool {
-    let request = isahc::head_async(link);
+    use isahc::prelude::{Request, RequestExt};
+    let request = if link.contains("driveindex.ga") {
+        Request::head(link.replace("driveindex.ga", "hashhackers.com"))
+            .header("Referer", link)
+            .body("")
+            .unwrap()
+            .send_async()
+    } else {
+        isahc::head_async(link)
+    };
+
     if let Ok(result) = async_std::future::timeout(Duration::from_secs(timeout_src), request).await
     {
         if let Ok(response) = result {
             info!("Got {} for {}", response.status(), link);
             return response.status().is_success() || response.status().is_redirection();
-            // TODO: Check hashhackers 404
         }
     }
     info!("Got timeout for {}", link);
