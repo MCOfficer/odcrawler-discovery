@@ -21,3 +21,4 @@ shrust = "0.0.7"
 simplelog = "0.8"
 structopt = "0.3"
 wither = { version = "0.9.0-alpha.2", features = ["async-std-runtime"], default_features = false }
+zip = "0.5"

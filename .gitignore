@@ -4,4 +4,5 @@ OpenDirectoryDownloader/
 Scans/
 *.log
 data.ms/
-stats.json
+/*.json
+dump.zip*
