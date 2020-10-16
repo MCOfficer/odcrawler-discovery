@@ -29,9 +29,10 @@ struct Dump {
 pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     info!("Creating dump");
 
-    let mut tempfile = opt.public_dir.clone();
-    tempfile.push("dump.zip.tmp");
-    let buffer = BufWriter::new(File::create(&tempfile)?);
+    let mut tempfile_path = opt.public_dir.clone();
+    tempfile_path.push("dump.zip.tmp");
+    let tempfile = File::create(&tempfile_path)?;
+    let buffer = BufWriter::new(&tempfile);
 
     let mut zipfile = zip::ZipWriter::new(buffer);
     let inner_filename = format!("dump-{}.txt", Utc::now().format("%F-%H-%M-%S"));
@@ -51,20 +52,24 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
             .filter_map(|r| async { r.ok().filter(|l| ods.contains(&l.opendirectory)) }),
     );
 
+    let mut count = 0;
     while let Some(link) = read.next().await {
         zipfile.write_all(format!("{}\n", link.url).as_bytes())?;
+        count += 1;
     }
+    tempfile.sync_all()?;
+    let size = tempfile.metadata()?.len();
 
     drop(zipfile);
     let mut targetfile = opt.public_dir.clone();
     targetfile.push("dump.zip");
 
-    std::fs::rename(tempfile, targetfile)?;
+    std::fs::rename(tempfile_path, targetfile)?;
 
     let dump = Dump {
         url: "https://discovery.odcrawler.xyz/dump.zip".to_string(),
-        links: 0,
-        size: 0,
+        links: count,
+        size,
         created: Utc::now(),
     };
     save_json(&opt, &dump, "dump.json")?;
