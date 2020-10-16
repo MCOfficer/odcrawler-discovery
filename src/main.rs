@@ -198,18 +198,35 @@ impl Schedule for UpdateStats {
     }
 
     async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
-        stats::update_stats(opt, db, false).await
+        stats::update_stats(opt, db).await
+    }
+}
+
+struct CreateDump;
+#[async_trait]
+impl Schedule for CreateDump {
+    fn name(&self) -> &str {
+        "create dump"
+    }
+
+    fn frequency(&self) -> u16 {
+        20
+    }
+
+    async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
+        stats::create_dump(opt, db).await
     }
 }
 
 async fn scheduler_loop(opt: Opt, mut db: Database) {
     info!("Started scheduler thread");
 
-    let schedule_tasks: [Box<dyn Schedule>; 4] = [
+    let schedule_tasks: [Box<dyn Schedule>; 5] = [
         Box::new(ProcessResults),
         Box::new(ScanOpendirectory),
         Box::new(CheckLinks),
         Box::new(UpdateStats),
+        Box::new(CreateDump),
     ];
 
     let mut counter: u16 = 0;
