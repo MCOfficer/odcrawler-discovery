@@ -2,6 +2,8 @@
 extern crate log;
 #[macro_use]
 extern crate async_trait;
+#[macro_use]
+extern crate serde_json;
 
 use crate::db::Database;
 use anyhow::Result;
@@ -19,7 +21,7 @@ use wither::Model;
 
 mod check_links;
 mod db;
-mod meili;
+mod elastic;
 mod scans;
 mod stats;
 
@@ -36,13 +38,13 @@ pub struct Opt {
     #[structopt(long)]
     scan_dir: Vec<PathBuf>,
 
-    /// Meilisearch address
-    #[structopt(long, default_value = "http://127.0.0.1:7700")]
-    meili_url: String,
+    /// Elasticsearch address
+    #[structopt(long, default_value = "http://127.0.0.1:9200")]
+    elastic_url: String,
 
-    /// Meilisearch master key
-    #[structopt(long, env = "MEILI_MASTER_KEY", default_value = "")]
-    meili_key: String,
+    /// Elasticsearch password
+    #[structopt(long, env = "ELASTIC_PASS", default_value = "")]
+    elastic_pass: String,
 
     /// Directory for public files (e.g. stats.json)
     #[structopt(long, default_value = ".")]
@@ -116,8 +118,9 @@ pub async fn export_all(opt: &Opt, db: &Database) -> Result<()> {
         .chunks(50_000)
         .for_each_concurrent(2, |chunk| async {
             let len = chunk.len();
-            if let Err(e) = meili::add_links(opt, chunk, false).await {
-                error!("Error adding links to Meilisearch: {}", e);
+            let chunk = chunk;
+            if let Err(e) = elastic::add_bulk(opt, &chunk) {
+                error!("Error adding links to Elasticsearch: {}", e);
             };
             total.fetch_add(len, Ordering::Relaxed);
         })
@@ -221,12 +224,12 @@ impl Schedule for CreateDump {
 async fn scheduler_loop(opt: Opt, mut db: Database) {
     info!("Started scheduler thread");
 
-    let schedule_tasks: [Box<dyn Schedule>; 5] = [
+    let schedule_tasks: [Box<dyn Schedule>; 4] = [
         Box::new(ProcessResults),
         Box::new(ScanOpendirectory),
         Box::new(CheckLinks),
         Box::new(UpdateStats),
-        Box::new(CreateDump),
+        //Box::new(CreateDump),
     ];
 
     let mut counter: u16 = 0;

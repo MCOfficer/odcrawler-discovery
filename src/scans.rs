@@ -1,5 +1,5 @@
 use crate::db::Database;
-use crate::meili;
+use crate::elastic;
 use crate::Opt;
 use anyhow::Result;
 use flate2::read::GzDecoder;
@@ -65,7 +65,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     let opendirectory = scan_result.root.url.clone();
     drop(files);
 
-    meili::add_links_from_db(opt, db, &opendirectory).await?;
+    elastic::add_links_from_db(opt, db, &opendirectory).await?;
 
     let mut processed_dir = chosen_file.parent().unwrap().to_path_buf();
     processed_dir.push("processed");
