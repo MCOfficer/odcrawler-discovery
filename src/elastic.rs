@@ -6,6 +6,7 @@ use isahc::http::header::CONTENT_TYPE;
 use isahc::RequestExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::io::Read;
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize)]
@@ -77,9 +78,14 @@ pub fn remove_bulk(opt: &Opt, ids: &[String]) -> Result<()> {
 }
 
 fn bulk_request(opt: &Opt, body: String) -> Result<()> {
-    isahc::http::Request::put(format!("{}/links/_bulk", opt.elastic_url))
+    let response = isahc::http::Request::put(format!("{}/links/_bulk", opt.elastic_url))
         .header(CONTENT_TYPE, "application/json")
         .body(body)?
         .send()?;
+    if !response.status().is_success() {
+        let mut buffer = String::new();
+        response.into_body().read_to_string(&mut buffer)?;
+        error!("Got non-success status code, response was\n {}", buffer);
+    }
     Ok(())
 }

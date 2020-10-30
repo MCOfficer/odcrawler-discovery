@@ -9,7 +9,7 @@ use crate::db::Database;
 use anyhow::Result;
 use futures::StreamExt;
 use shrust::{Shell, ShellIO};
-use simplelog::{ConfigBuilder, LevelFilter, WriteLogger};
+use simplelog::{Config, LevelFilter, WriteLogger};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -55,9 +55,7 @@ pub struct Opt {
 async fn main() {
     WriteLogger::init(
         LevelFilter::Info,
-        ConfigBuilder::new()
-            .add_filter_ignore_str("surf::middleware::logger")
-            .build(),
+        Config::default(),
         File::create("odcrawler-discovery.log").unwrap(),
     )
     .unwrap();
