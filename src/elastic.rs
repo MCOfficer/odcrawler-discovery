@@ -2,7 +2,9 @@ use crate::db::Link;
 use crate::{db, Opt};
 use anyhow::Result;
 use futures::StreamExt;
+use isahc::auth::{Authentication, Credentials};
 use isahc::http::header::CONTENT_TYPE;
+use isahc::prelude::Configurable;
 use isahc::RequestExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -80,6 +82,8 @@ pub fn remove_bulk(opt: &Opt, ids: &[String]) -> Result<()> {
 fn bulk_request(opt: &Opt, body: String) -> Result<()> {
     let response = isahc::http::Request::put(format!("{}/links/_bulk", opt.elastic_url))
         .header(CONTENT_TYPE, "application/json")
+        .authentication(Authentication::basic())
+        .credentials(Credentials::new("elastic", opt.elastic_pass.clone()))
         .body(body)?
         .send()?;
     if !response.status().is_success() {
