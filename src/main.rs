@@ -211,7 +211,7 @@ impl Schedule for CreateDump {
     }
 
     fn frequency(&self) -> u16 {
-        20
+        100
     }
 
     async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
@@ -222,12 +222,12 @@ impl Schedule for CreateDump {
 async fn scheduler_loop(opt: Opt, mut db: Database) {
     info!("Started scheduler thread");
 
-    let schedule_tasks: [Box<dyn Schedule>; 4] = [
+    let schedule_tasks: [Box<dyn Schedule>; 5] = [
         Box::new(ProcessResults),
         Box::new(ScanOpendirectory),
         Box::new(CheckLinks),
         Box::new(UpdateStats),
-        //Box::new(CreateDump),
+        Box::new(CreateDump),
     ];
 
     let mut counter: u16 = 0;
