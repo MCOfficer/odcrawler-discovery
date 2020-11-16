@@ -64,6 +64,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     db.save_scan_result(&scan_result, &files).await?;
     let opendirectory = scan_result.root.url.clone();
     drop(files);
+    drop(scan_result);
 
     elastic::add_links_from_db(opt, db, &opendirectory).await?;
 
