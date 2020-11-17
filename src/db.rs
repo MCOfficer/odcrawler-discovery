@@ -1,4 +1,4 @@
-use crate::scans::{ODScanFile, ODScanResult};
+use crate::scans::ODScanFile;
 use anyhow::Result;
 use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
@@ -122,13 +122,9 @@ impl Database {
         Ok(Link::find(&self.db, doc! {"opendirectory": opendirectory}, None).await?)
     }
 
-    pub async fn save_scan_result(
-        &mut self,
-        scan_result: &ODScanResult,
-        files: &[&ODScanFile],
-    ) -> Result<()> {
+    pub async fn save_scan_result(&mut self, root_url: &str, files: &[ODScanFile]) -> Result<()> {
         info!("Saving results");
-        let document = doc! {"url": scan_result.root.url.clone()};
+        let document = doc! {"url": root_url.to_string()};
 
         if OpenDirectory::find_one(&self.db, document, None)
             .await?
@@ -136,7 +132,7 @@ impl Database {
         {
             OpenDirectory {
                 id: None,
-                url: scan_result.root.url.clone(),
+                url: root_url.to_string(),
                 unreachable: 0,
             }
             .save(&self.db, None)
@@ -146,7 +142,7 @@ impl Database {
         for chunk in files.chunks(1000) {
             let docs: Vec<Document> = chunk
                 .iter()
-                .map(|f| doc! {"url": f.url.clone(), "opendirectory": scan_result.root.url.clone(), "unreachable": 0})
+                .map(|f| doc! {"url": f.url.clone(), "opendirectory": root_url.to_string(), "unreachable": 0})
                 .collect();
             Link::collection(&self.db).insert_many(docs, None).await?;
         }

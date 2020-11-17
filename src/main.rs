@@ -2,8 +2,6 @@
 extern crate log;
 #[macro_use]
 extern crate async_trait;
-#[macro_use]
-extern crate serde_json;
 
 use crate::db::Database;
 use anyhow::Result;
