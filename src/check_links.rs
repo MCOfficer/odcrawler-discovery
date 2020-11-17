@@ -3,6 +3,7 @@ use crate::db::OpenDirectory;
 use crate::{elastic, Opt};
 use anyhow::Result;
 use futures::StreamExt;
+use isahc::config::SslOption;
 use isahc::prelude::{Configurable, Request, RequestExt};
 use std::time::Duration;
 use wither::Model;
@@ -64,7 +65,8 @@ async fn link_is_reachable(link: &str, timeout: Duration) -> bool {
 
     let mut builder = Request::head(&link)
         .connect_timeout(timeout)
-        .timeout(timeout);
+        .timeout(timeout)
+        .ssl_options(SslOption::DANGER_ACCEPT_INVALID_CERTS);
 
     // Workaround for hashhacker's "AI protection"
     if link.contains("driveindex.ga") {
