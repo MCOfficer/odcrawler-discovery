@@ -3,6 +3,7 @@ use crate::db::OpenDirectory;
 use crate::{elastic, Opt};
 use anyhow::Result;
 use futures::StreamExt;
+use isahc::prelude::{Configurable, Request, RequestExt};
 use std::time::Duration;
 use wither::Model;
 
@@ -11,7 +12,7 @@ pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
     db.get_opendirectories(true)
         .await?
         .filter_map(|res| async { res.ok() })
-        .for_each_concurrent(8, |od| async {
+        .for_each_concurrent(32, |od| async {
             if let Err(e) = check_opendirectory(&opt, &db, od).await {
                 error!("Error checking OD: {}", e);
             };
@@ -21,7 +22,7 @@ pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
 }
 
 pub async fn check_opendirectory(opt: &Opt, db: &Database, mut od: OpenDirectory) -> Result<()> {
-    let is_reachable = link_is_reachable(&od.url, 15);
+    let is_reachable = link_is_reachable(&od.url, Duration::from_secs(30));
 
     if is_reachable.await {
         if od.unreachable > 5 {
@@ -57,25 +58,33 @@ async fn remove_od_links(opt: &Opt, db: &Database, od: &OpenDirectory) -> Result
     Ok(())
 }
 
-async fn link_is_reachable(link: &str, timeout_src: u64) -> bool {
-    use isahc::prelude::{Request, RequestExt};
-    let request = if link.contains("driveindex.ga") {
-        Request::head(link.replace("driveindex.ga", "hashhackers.com"))
-            .header("Referer", link)
-            .body("")
-            .unwrap()
-            .send_async()
-    } else {
-        isahc::head_async(link)
+async fn link_is_reachable(link: &str, timeout: Duration) -> bool {
+    // Patch for some non-comformant URLs
+    let link = link.replace(" ", "%20");
+
+    let mut builder = Request::head(&link)
+        .connect_timeout(timeout)
+        .timeout(timeout);
+
+    // Workaround for hashhacker's "AI protection"
+    if link.contains("driveindex.ga") {
+        builder = builder
+            .uri(link.replace("driveindex.ga", "hashhackers.com"))
+            .header("Referer", &link);
+    }
+
+    let request = match builder.body("") {
+        Ok(r) => r,
+        Err(e) => {
+            error!("Error building request for URI '{}': {}", &link, e);
+            return false;
+        }
     };
 
-    if let Ok(result) = async_std::future::timeout(Duration::from_secs(timeout_src), request).await
-    {
-        if let Ok(response) = result {
-            info!("Got {} for {}", response.status(), link);
-            return response.status().is_success() || response.status().is_redirection();
-        }
+    if let Ok(response) = request.send_async().await {
+        info!("Got {} for {}", response.status(), link);
+        return response.status().is_success() || response.status().is_redirection();
     }
-    info!("Got timeout for {}", link);
+    // let isahc log any issues
     false
 }
