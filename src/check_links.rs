@@ -8,6 +8,8 @@ use isahc::prelude::{Configurable, Request, RequestExt};
 use std::time::Duration;
 use wither::Model;
 
+pub const DEAD_OD_THRESHOLD: i32 = 10;
+
 pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
     info!("Checking ODs concurrently");
     db.get_opendirectories(true)
@@ -23,12 +25,11 @@ pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
 }
 
 pub async fn check_opendirectory(opt: &Opt, db: &Database, mut od: OpenDirectory) -> Result<()> {
-    let threshold = 10;
     let is_reachable = link_is_reachable(&od.url, Duration::from_secs(30));
 
     if is_reachable.await {
         // Re-add links if it was dead
-        if od.unreachable > threshold {
+        if od.unreachable > DEAD_OD_THRESHOLD {
             elastic::add_links_from_db(opt, db, &od.url).await?;
         }
         // Reset to 0 regardless
@@ -38,11 +39,11 @@ pub async fn check_opendirectory(opt: &Opt, db: &Database, mut od: OpenDirectory
         }
     } else {
         // Remove links only if it was alive
-        if od.unreachable + 1 == threshold {
+        if od.unreachable + 1 == DEAD_OD_THRESHOLD {
             remove_od_links(opt, db, &od).await?;
         }
         // Increment if it's below the threshold
-        if od.unreachable < threshold {
+        if od.unreachable < DEAD_OD_THRESHOLD {
             od.unreachable = od.unreachable.saturating_add(1);
             od.save(&db.db, None).await?;
         }

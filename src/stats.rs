@@ -1,3 +1,4 @@
+use crate::check_links::DEAD_OD_THRESHOLD;
 use crate::db::Database;
 use crate::{db, Opt};
 use anyhow::Result;
@@ -41,7 +42,7 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     let ods: Vec<String> = db
         .get_opendirectories(false)
         .await?
-        .filter_map(|r| async { r.ok().filter(|l| l.unreachable < 5) })
+        .filter_map(|r| async { r.ok().filter(|l| l.unreachable < DEAD_OD_THRESHOLD) })
         .map(|od| od.url)
         .collect()
         .await;
