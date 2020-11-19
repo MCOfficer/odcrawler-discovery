@@ -81,7 +81,7 @@ async fn main() {
     });
     shell.new_command_noargs(
         "export",
-        "Exports all links to Meilisearch",
+        "Exports all links to Elasticsearch",
         move |io, _| {
             let db_clone = db.clone();
             let opt_clone = opt.clone();
@@ -96,7 +96,7 @@ async fn main() {
 }
 
 pub async fn export_all(opt: &Opt, db: &Database) -> Result<()> {
-    info!("Exporting all links to Meilisearch");
+    info!("Exporting all links to Elasticsearch");
 
     let ods: Vec<String> = db
         .get_opendirectories(false)
