@@ -30,13 +30,22 @@ impl Model for OpenDirectory {
 
 impl Migrating for OpenDirectory {
     fn migrations() -> Vec<Box<dyn wither::Migration>> {
-        vec![Box::new(wither::IntervalMigration {
-            name: "add-times-unreachable".to_string(),
-            threshold: chrono::Utc.ymd(2020, 9, 30).and_hms(0, 0, 0),
-            filter: doc! {"unreachable": doc!{"$exists": false}},
-            set: Some(doc! {"unreachable": 0}),
-            unset: None,
-        })]
+        vec![
+            Box::new(wither::IntervalMigration {
+                name: "add-times-unreachable".to_string(),
+                threshold: chrono::Utc.ymd(2020, 9, 30).and_hms(0, 0, 0),
+                filter: doc! {"unreachable": doc!{"$exists": false}},
+                set: Some(doc! {"unreachable": 0}),
+                unset: None,
+            }),
+            Box::new(wither::IntervalMigration {
+                name: "cap-times-unreachable".to_string(),
+                threshold: chrono::Utc.ymd(2020, 11, 20).and_hms(0, 0, 0),
+                filter: doc! {"unreachable": doc!{"$gt": 10}},
+                set: Some(doc! {"unreachable": 10}),
+                unset: None,
+            }),
+        ]
     }
 }
 
