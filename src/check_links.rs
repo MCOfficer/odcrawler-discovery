@@ -13,7 +13,7 @@ pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
     db.get_opendirectories(true)
         .await?
         .filter_map(|res| async { res.ok() })
-        .for_each_concurrent(32, |od| async {
+        .for_each_concurrent(128, |od| async {
             if let Err(e) = check_opendirectory(&opt, &db, od).await {
                 error!("Error checking OD: {}", e);
             };
