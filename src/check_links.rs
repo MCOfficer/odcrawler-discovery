@@ -23,21 +23,28 @@ pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
 }
 
 pub async fn check_opendirectory(opt: &Opt, db: &Database, mut od: OpenDirectory) -> Result<()> {
+    let threshold = 10;
     let is_reachable = link_is_reachable(&od.url, Duration::from_secs(30));
 
     if is_reachable.await {
-        if od.unreachable > 5 {
+        // Re-add links if it was dead
+        if od.unreachable > threshold {
             elastic::add_links_from_db(opt, db, &od.url).await?;
         }
-        od.unreachable = 0;
-        od.save(&db.db, None).await?;
+        // Reset to 0 regardless
+        if od.unreachable > 0 {
+            od.unreachable = 0;
+            od.save(&db.db, None).await?;
+        }
     } else {
-        od.unreachable = od.unreachable.saturating_add(1);
-        od.save(&db.db, None).await?;
-
-        // Only remove every 5 runs, just to make sure it's gone
-        if od.unreachable == 5 || (od.unreachable != 0 && od.unreachable % 50 == 0) {
+        // Remove links only if it was alive
+        if od.unreachable + 1 == threshold {
             remove_od_links(opt, db, &od).await?;
+        }
+        // Increment if it's below the threshold
+        if od.unreachable < threshold {
+            od.unreachable = od.unreachable.saturating_add(1);
+            od.save(&db.db, None).await?;
         }
     }
     Ok(())

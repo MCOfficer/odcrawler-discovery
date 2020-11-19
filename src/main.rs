@@ -177,7 +177,7 @@ impl Schedule for CheckLinks {
     }
 
     fn frequency(&self) -> u16 {
-        25
+        50
     }
 
     async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
