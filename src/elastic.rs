@@ -11,12 +11,12 @@ use serde_json::json;
 use std::io::Read;
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ElasticLink {
     #[serde(skip_serializing)]
-    id: String,
-    url: String,
-    filename: String,
+    pub id: String,
+    pub url: String,
+    pub filename: String,
 }
 
 impl From<db::Link> for ElasticLink {
@@ -50,16 +50,10 @@ pub async fn add_links_from_db(opt: &Opt, db: &db::Database, od: &str) -> Result
 pub fn add_bulk(opt: &Opt, links: &[ElasticLink]) -> Result<()> {
     info!("Adding {} links to Elasticsearch", links.len());
     for chunk in links.chunks(5_000) {
-        let body = chunk
-            .iter()
-            .map(|l| {
-                format!(
-                    "{}\n{}",
-                    json!({"index": {"_id": l.id}}).to_string(),
-                    serde_json::to_string(l).unwrap()
-                )
-            })
-            .fold("".to_string(), |buf, l| format!("{}{}\n", buf, l));
+        let mut body = BulkBody::default();
+        for link in chunk {
+            body.items.push(BulkAction::Index(link.clone()));
+        }
 
         bulk_request(opt, body)?;
     }
@@ -69,22 +63,57 @@ pub fn add_bulk(opt: &Opt, links: &[ElasticLink]) -> Result<()> {
 pub fn remove_bulk(opt: &Opt, ids: &[String]) -> Result<()> {
     info!("Removing {} links from Elasticsearch", ids.len());
     for chunk in ids.chunks(5_000) {
-        let body = chunk
-            .iter()
-            .map(|id| format!("{}\n", json!({"delete": {"_id": id}}).to_string()))
-            .fold("".to_string(), |buf, l| format!("{}{}\n", buf, l));
+        let mut body = BulkBody::default();
+        for id in chunk {
+            body.items.push(BulkAction::Delete(id.to_string()));
+        }
 
         bulk_request(opt, body)?;
     }
     Ok(())
 }
 
-fn bulk_request(opt: &Opt, body: String) -> Result<()> {
+pub enum BulkAction {
+    Delete(String),
+    Index(ElasticLink),
+}
+
+pub struct BulkBody {
+    pub items: Vec<BulkAction>,
+}
+
+impl Default for BulkBody {
+    fn default() -> Self {
+        BulkBody { items: vec![] }
+    }
+}
+
+impl ToString for BulkBody {
+    fn to_string(&self) -> String {
+        let mut buffer = String::new();
+        for action in &self.items {
+            let to_add = match action {
+                BulkAction::Delete(id) => {
+                    format!("{}\n", json!({"delete": {"_id": id}}).to_string())
+                }
+                BulkAction::Index(link) => format!(
+                    "{}\n{}",
+                    json!({"index": {"_id": link.id}}).to_string(),
+                    serde_json::to_string(&link).unwrap()
+                ),
+            };
+            buffer = format!("{}{}\n", buffer, to_add);
+        }
+        buffer
+    }
+}
+
+pub fn bulk_request(opt: &Opt, body: BulkBody) -> Result<()> {
     let response = isahc::http::Request::put(format!("{}/links/_bulk", opt.elastic_url))
         .header(CONTENT_TYPE, "application/json")
         .authentication(Authentication::basic())
         .credentials(Credentials::new("elastic", opt.elastic_pass.clone()))
-        .body(body)?
+        .body(body.to_string())?
         .send()?;
     if !response.status().is_success() {
         let mut buffer = String::new();
