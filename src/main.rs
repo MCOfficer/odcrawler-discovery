@@ -13,7 +13,7 @@ use simplelog::{Config, LevelFilter, WriteLogger};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use structopt::StructOpt;
 use wither::bson::doc;
