@@ -106,8 +106,8 @@ impl Database {
     pub async fn new() -> Result<Self> {
         info!("Connecting to database");
         let mut options = ClientOptions::default();
-        options.app_name = Some("odcrawler-discovery".to_string());
-        let db = Client::with_options(options)?.database("odcrawler-discovery");
+        options.app_name = Some("odcrawler-discovery-copy".to_string());
+        let db = Client::with_options(options)?.database("odcrawler-discovery-copy");
 
         // Disabled for this version of wither
         // OpenDirectory::sync(&client).await?;
@@ -122,7 +122,7 @@ impl Database {
         let doc = if dead_ods {
             doc! {}
         } else {
-            doc! { "unreachable": doc! { "$lt": 5} }
+            doc! { "unreachable": doc! { "$lt": crate::check_links::DEAD_OD_THRESHOLD} }
         };
         Ok(OpenDirectory::find(&self.db, doc, None).await?)
     }

@@ -88,7 +88,10 @@ pub async fn update_stats(opt: &Opt, db: &Database) -> Result<()> {
         .estimated_document_count(None)
         .await?;
     let alive_opendirectories = db::OpenDirectory::collection(&db.db)
-        .count_documents(doc! {"unreachable": doc! {"$lt": 5}}, None)
+        .count_documents(
+            doc! {"unreachable": doc! {"$lt": crate::check_links::DEAD_OD_THRESHOLD}},
+            None,
+        )
         .await?;
 
     let stats = Stats {
