@@ -110,7 +110,7 @@ pub async fn export_all(opt: &Opt, db: &Database) -> Result<()> {
     let total = db::Link::collection(&db.db)
         .estimated_document_count(None)
         .await? as u64;
-    let exported = AtomicUsize::new(0);
+    let exported = AtomicU64::new(0);
     let pb = ProgressBar::new(total).with_style(
         ProgressStyle::default_bar().template("{percent}%, ETA {eta}   {wide_bar}   {pos}/~{len}"),
     );
@@ -135,7 +135,14 @@ pub async fn export_all(opt: &Opt, db: &Database) -> Result<()> {
             if let Err(e) = elastic::bulk_request(opt, body) {
                 error!("Error exporting links to Elasticsearch: {}", e);
             };
-            total.fetch_add(len, Ordering::Relaxed);
+
+            exported.fetch_add(len as u64, Ordering::Relaxed);
+
+            let exported_inner = exported.load(Ordering::Relaxed);
+            if exported_inner > total {
+                pb.set_length(total);
+            }
+            pb.set_position(exported_inner as u64);
         })
         .await;
 
