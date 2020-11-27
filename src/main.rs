@@ -4,8 +4,10 @@ extern crate log;
 extern crate async_trait;
 
 use crate::db::Database;
+use crate::elastic::ElasticLink;
 use anyhow::Result;
 use futures::StreamExt;
+use indicatif::{ProgressBar, ProgressStyle};
 use shrust::{Shell, ShellIO};
 use simplelog::{Config, LevelFilter, WriteLogger};
 use std::fs::File;
@@ -96,33 +98,48 @@ async fn main() {
 }
 
 pub async fn export_all(opt: &Opt, db: &Database) -> Result<()> {
-    info!("Exporting all links to Elasticsearch");
+    info!("Adding or removing all links to/from Elasticsearch");
 
-    let ods: Vec<String> = db
+    let alive_ods: Vec<String> = db
         .get_opendirectories(false)
         .await?
         .filter_map(|r| async { r.ok().map(|od| od.url) })
         .collect()
         .await;
 
-    let total = AtomicUsize::new(0);
+    let total = db::Link::collection(&db.db)
+        .estimated_document_count(None)
+        .await? as u64;
+    let exported = AtomicUsize::new(0);
+    let pb = ProgressBar::new(total).with_style(
+        ProgressStyle::default_bar().template("{percent}%, ETA {eta}   {wide_bar}   {pos}/~{len}"),
+    );
+    pb.enable_steady_tick(100);
 
     db::Link::find(&db.db, doc! {}, None)
         .await?
-        .filter_map(|l| async { l.ok().filter(|l| ods.contains(&l.opendirectory)) })
-        .map(|l| l.into())
-        .chunks(50_000)
-        .for_each_concurrent(2, |chunk| async {
+        .filter_map(|l| async { l.ok() })
+        .map(|l| (alive_ods.contains(&l.opendirectory), ElasticLink::from(l)))
+        .chunks(5_000)
+        .for_each_concurrent(4, |chunk| async {
             let len = chunk.len();
             let chunk = chunk;
-            if let Err(e) = elastic::add_bulk(opt, &chunk) {
-                error!("Error adding links to Elasticsearch: {}", e);
+            let mut body = elastic::BulkBody::default();
+            for (is_alive, link) in chunk {
+                body.items.push(if is_alive {
+                    elastic::BulkAction::Index(link)
+                } else {
+                    elastic::BulkAction::Delete(link.id)
+                });
+            }
+            if let Err(e) = elastic::bulk_request(opt, body) {
+                error!("Error exporting links to Elasticsearch: {}", e);
             };
             total.fetch_add(len, Ordering::Relaxed);
         })
         .await;
 
-    info!("Exported {} documents", total.into_inner());
+    info!("Exported {} documents", exported.into_inner());
 
     Ok(())
 }
