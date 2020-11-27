@@ -106,8 +106,8 @@ impl Database {
     pub async fn new() -> Result<Self> {
         info!("Connecting to database");
         let mut options = ClientOptions::default();
-        options.app_name = Some("odcrawler-discovery-copy".to_string());
-        let db = Client::with_options(options)?.database("odcrawler-discovery-copy");
+        options.app_name = Some("odcrawler-discovery".to_string());
+        let db = Client::with_options(options)?.database("odcrawler-discovery");
 
         // Disabled for this version of wither
         // OpenDirectory::sync(&client).await?;
