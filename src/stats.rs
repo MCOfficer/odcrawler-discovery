@@ -46,7 +46,7 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     let ods: Vec<String> = db
         .get_opendirectories(false)
         .await?
-        .filter_map(|r| async { r.ok().filter(|l| l.unreachable < DEAD_OD_THRESHOLD) })
+        .filter_map(|r| async { r.ok() })
         .map(|od| od.url)
         .collect()
         .await;
@@ -60,7 +60,9 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     let mut count = 0;
     let mut bytes_written = 0;
     while let Some(link) = read.next().await {
-        let bytes = format!("{}\n", link.url).into_bytes();
+        let mut url = link.url;
+        url.push('\n');
+        let bytes = url.into_bytes();
         bytes_written += bytes.len();
         stdin.write_all(&*bytes)?;
         count += 1;
