@@ -25,6 +25,15 @@ mod elastic;
 mod scans;
 mod stats;
 
+macro_rules! enclose {
+    ( ($( $x:ident ),*) $y:expr ) => {
+        {
+            $(let $x = $x.clone();)*
+            $y
+        }
+    };
+}
+
 #[derive(StructOpt, Debug, Clone)]
 pub struct Opt {
     /// The Path to the OpenDirectoryDownloader executable. This executable's scan dir is inferred automatically.
@@ -82,17 +91,26 @@ async fn main() {
         Ok(())
     });
     shell.new_command_noargs(
+        "dump",
+        "Creates a new Dump",
+        enclose! { (opt, db) move |io, _| {
+            if let Err(e) = async_std::task::block_on(stats::create_dump(&opt, &db)) {
+                writeln!(io, "Error while creating dump: {}", e)?;
+                error!("Error while creating dump: {}", e);
+            };
+            Ok(())
+        }},
+    );
+    shell.new_command_noargs(
         "export",
         "Exports all links to Elasticsearch",
-        move |io, _| {
-            let db_clone = db.clone();
-            let opt_clone = opt.clone();
-            if let Err(e) = async_std::task::block_on(export_all(&opt_clone, &db_clone)) {
+        enclose! { (db, opt) move |io, _| {
+            if let Err(e) = async_std::task::block_on(export_all(&opt, &db)) {
                 writeln!(io, "Error while exporting links: {}", e)?;
                 error!("Error while exporting links: {}", e);
             };
             Ok(())
-        },
+        }},
     );
     shell.run_loop(&mut ShellIO::default());
 }
