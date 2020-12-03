@@ -6,7 +6,7 @@ use anyhow::Result;
 use flate2::read::GzDecoder;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -37,7 +37,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
             let path = entry?.path();
             let name = path.file_name().unwrap().to_string_lossy();
             if path.is_file()
-                && (name.ends_with(".json") || name.ends_with(".json.gz") || name.ends_with(".txt"))
+                && (name.ends_with(".json") || name.ends_with(".json.gz"))
                 && !name.starts_with("https___drive.google.com")
             {
                 files.push(path);
@@ -52,26 +52,10 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     let chosen_file = files.choose(&mut rand::thread_rng()).unwrap();
     info!("Selected {}", chosen_file.to_string_lossy());
 
-    let mut reader = BufReader::new(std::fs::File::open(chosen_file)?);
+    let reader = BufReader::new(std::fs::File::open(chosen_file)?);
 
     info!("Extracting files");
     let (root_url, files) = match chosen_file.extension().unwrap().to_string_lossy().as_ref() {
-        "txt" => {
-            let mut content = String::new();
-            reader.read_to_string(&mut content)?;
-            let files: Vec<ODScanFile> = content
-                .lines()
-                .map(|l| ODScanFile { url: l.to_string() })
-                .collect();
-            if files.is_empty() {
-                bail!("Got txt without lines (wat)");
-            }
-
-            let root_url_len = chosen_file.file_stem().unwrap().to_string_lossy().len();
-            let root_url = files.get(0).unwrap().url.split_at(root_url_len).0;
-
-            (root_url.to_string(), files)
-        }
         "json" => {
             let scan_results: ODScanResult = serde_json::from_reader(reader)?;
             (

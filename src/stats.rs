@@ -1,4 +1,3 @@
-use crate::check_links::DEAD_OD_THRESHOLD;
 use crate::db::Database;
 use crate::{db, Opt};
 use anyhow::Result;
