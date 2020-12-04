@@ -6,8 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::Write;
-use subprocess::{Exec, Redirection};
+use std::io::{BufWriter, Write};
 use wither::bson::doc;
 use wither::Model;
 
@@ -30,17 +29,14 @@ struct Dump {
 pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     info!("Creating dump");
 
-    let mut dump_file = opt.public_dir.clone();
-    dump_file.push("dump.txt.7z");
+    let mut tempfile_path = opt.public_dir.clone();
+    tempfile_path.push("dump.zip.tmp");
+    let tempfile = File::create(&tempfile_path)?;
+    let buffer = BufWriter::new(&tempfile);
 
-    let mut stdin = Exec::cmd("7z")
-        .arg("a")
-        .arg(dump_file)
-        .arg("-mx=1")
-        .arg("-si")
-        .stdout(Redirection::Pipe)
-        .stderr(Redirection::Merge)
-        .stream_stdin()?;
+    let mut zipfile = zip::ZipWriter::new(buffer);
+    let inner_filename = format!("dump-{}.txt", Utc::now().format("%F-%H-%M-%S"));
+    zipfile.start_file(inner_filename, zip::write::FileOptions::default())?;
 
     let ods: Vec<String> = db
         .get_opendirectories(false)
@@ -57,20 +53,25 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     );
 
     let mut count = 0;
-    let mut bytes_written = 0;
     while let Some(link) = read.next().await {
         let mut url = link.url;
         url.push('\n');
-        let bytes = url.into_bytes();
-        bytes_written += bytes.len();
-        stdin.write_all(&*bytes)?;
+        zipfile.write_all(&*url.into_bytes())?;
         count += 1;
     }
+    tempfile.sync_all()?;
+    let size = tempfile.metadata()?.len();
+
+    drop(zipfile);
+    let mut targetfile = opt.public_dir.clone();
+    targetfile.push("dump.zip");
+
+    std::fs::rename(tempfile_path, targetfile)?;
 
     let dump = Dump {
-        url: "https://discovery.odcrawler.xyz/dump.txt.7z".to_string(),
+        url: "https://discovery.odcrawler.xyz/dump.zip".to_string(),
         links: count,
-        size: bytes_written as u64,
+        size,
         created: Utc::now(),
     };
     save_json(&opt, &dump, "dump.json")?;
