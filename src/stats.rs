@@ -54,9 +54,8 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
 
     let mut count = 0;
     while let Some(link) = read.next().await {
-        let mut url = link.url;
-        url.push('\n');
-        zipfile.write_all(&*url.into_bytes())?;
+        let bytes = format!("{}\n", link.url).into_bytes();
+        zipfile.write_all(&bytes)?;
         count += 1;
     }
     tempfile.sync_all()?;
