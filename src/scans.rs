@@ -7,6 +7,7 @@ use flate2::read::GzDecoder;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::io::BufReader;
+use std::time::Duration;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
@@ -77,12 +78,17 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     };
     info!("Found {} files", files.len());
 
-    db.save_scan_result(&root_url, &files).await?;
+    let is_reachable =
+        crate::check_links::link_is_reachable(&root_url, Duration::from_secs(30)).await;
+
+    db.save_scan_result(&root_url, &files, is_reachable).await?;
 
     let opendirectory = root_url;
     drop(files);
 
-    elastic::add_links_from_db(opt, db, &opendirectory).await?;
+    if is_reachable {
+        elastic::add_links_from_db(opt, db, &opendirectory).await?;
+    }
 
     let mut processed_dir = chosen_file.parent().unwrap().to_path_buf();
     processed_dir.push("processed");

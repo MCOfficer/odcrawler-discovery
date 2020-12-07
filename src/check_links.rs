@@ -67,7 +67,7 @@ async fn remove_od_links(opt: &Opt, db: &Database, od: &OpenDirectory) -> Result
     Ok(())
 }
 
-async fn link_is_reachable(link: &str, timeout: Duration) -> bool {
+pub async fn link_is_reachable(link: &str, timeout: Duration) -> bool {
     // Patch for some non-comformant URLs
     let link = link.replace(" ", "%20");
 

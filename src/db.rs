@@ -131,7 +131,12 @@ impl Database {
         Ok(Link::find(&self.db, doc! {"opendirectory": opendirectory}, None).await?)
     }
 
-    pub async fn save_scan_result(&mut self, root_url: &str, files: &[ODScanFile]) -> Result<()> {
+    pub async fn save_scan_result(
+        &mut self,
+        root_url: &str,
+        files: &[ODScanFile],
+        is_reachable: bool,
+    ) -> Result<()> {
         info!("Saving results");
         let document = doc! {"url": root_url.to_string()};
 
@@ -142,7 +147,7 @@ impl Database {
             OpenDirectory {
                 id: None,
                 url: root_url.to_string(),
-                unreachable: 0,
+                unreachable: if is_reachable { 0 } else { 10 },
             }
             .save(&self.db, None)
             .await?
