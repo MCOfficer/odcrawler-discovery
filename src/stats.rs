@@ -31,12 +31,13 @@ struct Dump {
 pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     info!("Creating dump");
 
-    let mut tempfile = opt.public_dir.clone();
-    tempfile.push(format!("dump-{}.txt.7z", Utc::now().format("%F-%H-%M-%S")));
+    let mut dump_file = opt.public_dir.clone();
+    let filename = format!("dump-{}.txt.7z", Utc::now().format("%F-%H-%M-%S"));
+    dump_file.push(&filename);
 
     let mut stdin = Exec::cmd("7z")
         .arg("a")
-        .arg(&tempfile)
+        .arg(&dump_file)
         .arg("-mx=1")
         .arg("-si")
         .stdout(Redirection::Pipe)
@@ -69,10 +70,10 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     }
 
     let dump = Dump {
-        url: "https://discovery.odcrawler.xyz/dump.txt.7z".to_string(),
+        url: format!("https://discovery.odcrawler.xyz/{}", filename),
         links: count,
         size_uncompressed: bytes_written as u64,
-        size: tempfile.metadata()?.len(),
+        size: dump_file.metadata()?.len(),
         created: Utc::now(),
     };
     save_json(&opt, &dump, "dump.json")?;
