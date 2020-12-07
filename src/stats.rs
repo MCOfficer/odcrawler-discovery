@@ -22,6 +22,7 @@ struct Stats {
 struct Dump {
     url: String,
     links: u64,
+    size_uncompressed: u64,
     size: u64,
     #[serde(with = "ts_milliseconds")]
     created: DateTime<Utc>,
