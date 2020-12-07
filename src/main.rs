@@ -219,7 +219,7 @@ impl Schedule for CheckLinks {
     }
 
     fn frequency(&self) -> u16 {
-        50
+        100
     }
 
     async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
@@ -251,7 +251,7 @@ impl Schedule for CreateDump {
     }
 
     fn frequency(&self) -> u16 {
-        100
+        250
     }
 
     async fn run(&self, opt: &Opt, db: &mut Database) -> Result<()> {
