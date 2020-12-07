@@ -270,7 +270,7 @@ async fn scheduler_loop(opt: Opt, mut db: Database) {
         Box::new(CreateDump),
     ];
 
-    let mut counter: u16 = 0;
+    let mut counter: u16 = 1;
     loop {
         std::thread::sleep(Duration::from_secs(3));
 
