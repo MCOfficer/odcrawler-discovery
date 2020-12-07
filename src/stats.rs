@@ -30,8 +30,8 @@ struct Dump {
 pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     info!("Creating dump");
 
-    let mut dump_file = opt.public_dir.clone();
-    dump_file.push("dump.txt.7z");
+    let mut tempfile = opt.public_dir.clone();
+    tempfile.push(format!("dump-{}.txt.7z", Utc::now().format("%F-%H-%M-%S")));
 
     let mut stdin = Exec::cmd("7z")
         .arg("a")
