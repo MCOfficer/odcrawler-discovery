@@ -35,7 +35,7 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
 
     let mut stdin = Exec::cmd("7z")
         .arg("a")
-        .arg(dump_file)
+        .arg(&tempfile)
         .arg("-mx=1")
         .arg("-si")
         .stdout(Redirection::Pipe)
@@ -70,7 +70,8 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
     let dump = Dump {
         url: "https://discovery.odcrawler.xyz/dump.txt.7z".to_string(),
         links: count,
-        size: bytes_written as u64,
+        size_uncompressed: bytes_written as u64,
+        size: tempfile.metadata()?.len(),
         created: Utc::now(),
     };
     save_json(&opt, &dump, "dump.json")?;
