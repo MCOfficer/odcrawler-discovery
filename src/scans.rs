@@ -3,6 +3,7 @@ use crate::elastic;
 use crate::Opt;
 use anyhow::bail;
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use flate2::read::GzDecoder;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ use std::time::Duration;
 #[serde(rename_all = "PascalCase")]
 pub struct ODScanResult {
     pub root: ODScanDirectory,
+    pub finished: DateTime<Utc>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -56,32 +58,36 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     let reader = BufReader::new(std::fs::File::open(chosen_file)?);
 
     info!("Extracting files");
-    let (root_url, files) = match chosen_file.extension().unwrap().to_string_lossy().as_ref() {
-        "json" => {
-            let scan_results: ODScanResult = serde_json::from_reader(reader)?;
-            (
-                scan_results.root.url.clone(),
-                collect_files_recursive(scan_results.root),
-            )
-        }
-        "gz" => {
-            let scan_results: ODScanResult = serde_json::from_reader(GzDecoder::new(reader))?;
-            (
-                scan_results.root.url.clone(),
-                collect_files_recursive(scan_results.root),
-            )
-        }
-        f => bail!(format!(
-            "Got filename with unknown extension, but it was somehow collected: {}",
-            f
-        )),
-    };
+    let (root_url, files, last_scanned) =
+        match chosen_file.extension().unwrap().to_string_lossy().as_ref() {
+            "json" => {
+                let scan_results: ODScanResult = serde_json::from_reader(reader)?;
+                (
+                    scan_results.root.url.clone(),
+                    collect_files_recursive(scan_results.root),
+                    scan_results.finished,
+                )
+            }
+            "gz" => {
+                let scan_results: ODScanResult = serde_json::from_reader(GzDecoder::new(reader))?;
+                (
+                    scan_results.root.url.clone(),
+                    collect_files_recursive(scan_results.root),
+                    scan_results.finished,
+                )
+            }
+            f => bail!(format!(
+                "Got filename with unknown extension, but it was somehow collected: {}",
+                f
+            )),
+        };
     info!("Found {} files", files.len());
 
     let is_reachable =
         crate::check_links::link_is_reachable(&root_url, Duration::from_secs(30)).await;
 
-    db.save_scan_result(&root_url, &files, is_reachable).await?;
+    db.save_scan_result(&root_url, &files, is_reachable, last_scanned)
+        .await?;
 
     let opendirectory = root_url;
     drop(files);
@@ -96,7 +102,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     let mut processed_file = processed_dir;
     processed_file.push(chosen_file.file_name().unwrap());
     info!("Moving file to {}", processed_file.to_string_lossy());
-    std::fs::rename(chosen_file, processed_file)?;
+    //std::fs::rename(chosen_file, processed_file)?;
 
     Ok(())
 }

@@ -2,7 +2,7 @@ use crate::scans::ODScanFile;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use serde::{Deserialize, Serialize};
-use wither::bson::{doc, oid::ObjectId, Bson, Document};
+use wither::bson::{doc, oid::ObjectId, Bson, DateTime, Document};
 use wither::mongodb::options::ClientOptions;
 use wither::mongodb::*;
 use wither::prelude::*;
@@ -14,6 +14,7 @@ pub struct OpenDirectory {
     pub id: Option<ObjectId>,
     pub url: String,
     pub unreachable: i32,
+    pub scanned: DateTime,
 }
 
 impl Model for OpenDirectory {
@@ -143,22 +144,25 @@ impl Database {
         root_url: &str,
         files: &[ODScanFile],
         is_reachable: bool,
+        scanned: chrono::DateTime<chrono::Utc>,
     ) -> Result<()> {
         info!("Saving results");
         let document = doc! {"url": root_url.to_string()};
 
-        if OpenDirectory::find_one(&self.db, document, None)
-            .await?
-            .is_none()
-        {
-            OpenDirectory {
+        match OpenDirectory::find_one(&self.db, document, None).await? {
+            Some(mut od) => {
+                od.scanned = DateTime(scanned);
+                od
+            }
+            None => OpenDirectory {
                 id: None,
                 url: root_url.to_string(),
                 unreachable: if is_reachable { 0 } else { 10 },
-            }
-            .save(&self.db, None)
-            .await?
-        };
+                scanned: DateTime(scanned),
+            },
+        }
+        .save(&self.db, None)
+        .await?;
 
         for chunk in files.chunks(1000) {
             let docs: Vec<Document> = chunk
