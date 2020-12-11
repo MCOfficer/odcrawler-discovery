@@ -83,7 +83,7 @@ pub async fn link_is_reachable(link: &str, timeout: Duration) -> bool {
             .header("Referer", &link);
     }
 
-    let request = match builder.body("") {
+    let request = match builder.body(()) {
         Ok(r) => r,
         Err(e) => {
             error!("Error building request for URI '{}': {}", &link, e);
