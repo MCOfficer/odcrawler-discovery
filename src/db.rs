@@ -1,8 +1,8 @@
 use crate::scans::ODScanFile;
 use anyhow::Result;
-use chrono::TimeZone;
+use chrono::{TimeZone, Utc};
 use serde::{Deserialize, Serialize};
-use wither::bson::{doc, oid::ObjectId, Document};
+use wither::bson::{doc, oid::ObjectId, Bson, Document};
 use wither::mongodb::options::ClientOptions;
 use wither::mongodb::*;
 use wither::prelude::*;
@@ -43,6 +43,13 @@ impl Migrating for OpenDirectory {
                 threshold: chrono::Utc.ymd(2020, 11, 20).and_hms(0, 0, 0),
                 filter: doc! {"unreachable": doc!{"$gt": 10}},
                 set: Some(doc! {"unreachable": 10}),
+                unset: None,
+            }),
+            Box::new(wither::IntervalMigration {
+                name: "add-last-scanned".to_string(),
+                threshold: chrono::Utc.ymd(2020, 12, 15).and_hms(0, 0, 0),
+                filter: doc! {"scanned": doc!{"$exists": false}},
+                set: Some(doc! {"scanned": Bson::DateTime(Utc.timestamp(0, 0))}),
                 unset: None,
             }),
         ]
