@@ -29,7 +29,7 @@ pub async fn check_opendirectory(opt: &Opt, db: &Database, mut od: OpenDirectory
 
     if is_reachable.await {
         // Re-add links if it was dead
-        if od.unreachable > DEAD_OD_THRESHOLD {
+        if od.unreachable >= DEAD_OD_THRESHOLD {
             elastic::add_links_from_db(opt, db, &od.url).await?;
         }
         // Reset to 0 regardless
