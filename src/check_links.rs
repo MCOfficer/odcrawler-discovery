@@ -5,29 +5,50 @@ use anyhow::Result;
 use futures::StreamExt;
 use isahc::config::SslOption;
 use isahc::prelude::{Configurable, Request, RequestExt};
+use std::sync::Mutex;
 use std::time::Duration;
 use wither::Model;
 
 pub const DEAD_OD_THRESHOLD: i32 = 10;
 
 pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
+    let ods: Mutex<Vec<(OpenDirectory, bool)>> = Mutex::new(vec![]);
+
     info!("Checking ODs concurrently");
     db.get_opendirectories(true)
         .await?
         .filter_map(|res| async { res.ok() })
         .for_each_concurrent(128, |od| async {
-            if let Err(e) = check_opendirectory(&opt, &db, od).await {
-                error!("Error checking OD: {}", e);
-            };
+            let reachable = link_is_reachable(&od.url, Duration::from_secs(30)).await;
+            match ods.lock() {
+                Ok(mut ods) => {
+                    ods.push((od, reachable));
+                }
+                Err(_) => {
+                    error!("Poisoned Mutex, something went wrong in a different closure");
+                }
+            }
         })
         .await;
+
+    info!("Persisting results");
+    // There are no other users of this mutex now
+    for (od, reachable) in ods.into_inner().unwrap() {
+        if let Err(e) = persists_checked_opendirectory(&opt, &db, od, reachable).await {
+            error!("Error saving OD to DB: {}", e);
+        };
+    }
+
     Ok(())
 }
 
-pub async fn check_opendirectory(opt: &Opt, db: &Database, mut od: OpenDirectory) -> Result<()> {
-    let is_reachable = link_is_reachable(&od.url, Duration::from_secs(30));
-
-    if is_reachable.await {
+pub async fn persists_checked_opendirectory(
+    opt: &Opt,
+    db: &Database,
+    mut od: OpenDirectory,
+    reachable: bool,
+) -> Result<()> {
+    if reachable {
         // Re-add links if it was dead
         if od.unreachable >= DEAD_OD_THRESHOLD {
             elastic::add_links_from_db(opt, db, &od.url).await?;
