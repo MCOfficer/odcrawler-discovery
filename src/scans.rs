@@ -103,7 +103,7 @@ fn collect_files(dir: ODScanDirectory) -> Vec<ODScanFile> {
 }
 
 fn collect_files_recursive(dir: ODScanDirectory) -> Vec<ODScanFile> {
-    let mut files = vec![];
+    let mut files = dir.files.unwrap_or_default();
 
     for subdir in dir.subdirectories {
         files.extend(collect_files_recursive(subdir));
