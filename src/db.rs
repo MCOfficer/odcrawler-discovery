@@ -153,7 +153,11 @@ impl Database {
             .await?
         };
 
-        for chunk in files.drain(..).as_slice().chunks(1000) {
+        while !files.is_empty() {
+            let split = std::cmp::min(files.len(), 1000);
+            let chunk = files.split_off(split);
+            files.shrink_to_fit();
+
             let docs: Vec<Document> = chunk
                 .iter()
                 .map(|f| doc! {"url": f.url.clone(), "opendirectory": root_url.to_string(), "unreachable": 0})
