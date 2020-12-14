@@ -55,20 +55,20 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
 
     let reader = BufReader::new(std::fs::File::open(chosen_file)?);
 
-    info!("Extracting files");
+    info!("Deserializing");
     let (root_url, files) = match chosen_file.extension().unwrap().to_string_lossy().as_ref() {
         "json" => {
             let scan_results: ODScanResult = serde_json::from_reader(reader)?;
             (
                 scan_results.root.url.clone(),
-                collect_files_recursive(scan_results.root),
+                collect_files(scan_results.root),
             )
         }
         "gz" => {
             let scan_results: ODScanResult = serde_json::from_reader(GzDecoder::new(reader))?;
             (
                 scan_results.root.url.clone(),
-                collect_files_recursive(scan_results.root),
+                collect_files(scan_results.root),
             )
         }
         f => bail!(format!(
@@ -80,14 +80,10 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
 
     let is_reachable =
         crate::check_links::link_is_reachable(&root_url, Duration::from_secs(30)).await;
-
-    db.save_scan_result(&root_url, &files, is_reachable).await?;
-
-    let opendirectory = root_url;
-    drop(files);
+    db.save_scan_result(&root_url, files, is_reachable).await?;
 
     if is_reachable {
-        elastic::add_links_from_db(opt, db, &opendirectory).await?;
+        elastic::add_links_from_db(opt, db, &root_url).await?;
     }
 
     let mut processed_dir = chosen_file.parent().unwrap().to_path_buf();
@@ -101,14 +97,16 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     Ok(())
 }
 
+fn collect_files(dir: ODScanDirectory) -> Vec<ODScanFile> {
+    info!("Extracting files");
+    collect_files_recursive(dir)
+}
+
 fn collect_files_recursive(dir: ODScanDirectory) -> Vec<ODScanFile> {
     let mut files = vec![];
 
     for subdir in dir.subdirectories {
         files.extend(collect_files_recursive(subdir));
-    }
-    if let Some(own_files) = dir.files {
-        files.extend(own_files);
     }
 
     files

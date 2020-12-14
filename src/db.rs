@@ -134,7 +134,7 @@ impl Database {
     pub async fn save_scan_result(
         &mut self,
         root_url: &str,
-        files: &[ODScanFile],
+        mut files: Vec<ODScanFile>,
         is_reachable: bool,
     ) -> Result<()> {
         info!("Saving results");
@@ -153,7 +153,7 @@ impl Database {
             .await?
         };
 
-        for chunk in files.chunks(1000) {
+        for chunk in files.drain(..).as_slice().chunks(1000) {
             let docs: Vec<Document> = chunk
                 .iter()
                 .map(|f| doc! {"url": f.url.clone(), "opendirectory": root_url.to_string(), "unreachable": 0})
