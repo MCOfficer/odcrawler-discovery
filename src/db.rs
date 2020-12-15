@@ -155,8 +155,9 @@ impl Database {
 
         while !files.is_empty() {
             let split = std::cmp::min(files.len(), 1000);
-            let chunk = files.split_off(split);
-            files.shrink_to_fit();
+            let new_files = files.split_off(split);
+            let chunk = files;
+            files = new_files;
 
             let docs: Vec<Document> = chunk
                 .iter()
