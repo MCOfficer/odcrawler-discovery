@@ -17,7 +17,7 @@ pub struct ElasticLink {
     pub id: String,
     pub url: String,
     pub filename: String,
-    pub extension: String,
+    pub extension: Option<String>,
 }
 
 impl From<db::Link> for ElasticLink {
@@ -31,7 +31,7 @@ impl From<db::Link> for ElasticLink {
                 .to_string(),
             extension: PathBuf::from(&l.url)
                 .extension()
-                .map_or("".to_string(), |os| os.to_string_lossy().to_string()),
+                .map(|e| e.to_string_lossy().into()),
             url: l.url,
         }
     }
