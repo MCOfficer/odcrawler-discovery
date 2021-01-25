@@ -1,12 +1,14 @@
 use crate::db::Database;
 use crate::{db, Opt};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Write;
+use std::time::Duration;
 use subprocess::{Exec, Redirection};
 use wither::bson::doc;
 use wither::Model;
@@ -69,6 +71,10 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
         count += 1;
     }
 
+    // Generious sleep because there's a tiny race condition
+    // dump_file.exists() can be false immediately after 7z is done
+    std::thread::sleep(Duration::from_secs(3));
+
     let dump = Dump {
         url: format!("https://discovery.odcrawler.xyz/{}", filename),
         links: count,
@@ -76,7 +82,20 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
         size: dump_file.metadata()?.len(),
         created: Utc::now(),
     };
-    save_json(&opt, &dump, "dump.json")?;
+    save_json(&opt, &dump, "dump.json").context("Failed to write json")?;
+
+    // Clean up old dumps
+    let dump_filename_pattern = Regex::new(r"dump-[\d-]+.txt.7z")?;
+    for result in opt.public_dir.read_dir()? {
+        let entry = result?;
+        if entry.file_type()?.is_file()
+            && entry.file_name().to_string_lossy() != filename
+            && dump_filename_pattern.is_match(&entry.file_name().to_string_lossy())
+        {
+            info!("Removing old dump {}", entry.file_name().to_string_lossy());
+            std::fs::remove_file(entry.path())?;
+        };
+    }
 
     Ok(())
 }

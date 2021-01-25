@@ -1327,6 +1327,7 @@ dependencies = [
  "isahc",
  "log",
  "rand 0.8.2",
+ "regex",
  "serde",
  "serde_json",
  "shrust",
