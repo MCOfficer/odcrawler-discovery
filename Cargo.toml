@@ -12,7 +12,7 @@ chrono = { version = "0.4", features = ["serde"] }
 flate2 = "1.0"
 futures = "0.3"
 indicatif = "0.15"
-isahc = "0.9.12"
+isahc = "1.1.0"
 log = "0.4"
 rand = "0.8"
 regex = "1"
