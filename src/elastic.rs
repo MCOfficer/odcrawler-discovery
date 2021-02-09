@@ -5,7 +5,7 @@ use futures::StreamExt;
 use isahc::auth::{Authentication, Credentials};
 use isahc::http::header::CONTENT_TYPE;
 use isahc::prelude::Configurable;
-use isahc::RequestExt;
+use isahc::{RequestExt, ResponseExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::io::Read;
@@ -113,7 +113,7 @@ impl ToString for BulkBody {
 }
 
 pub fn bulk_request(opt: &Opt, body: BulkBody) -> Result<()> {
-    let response = isahc::http::Request::put(format!("{}/links/_bulk", opt.elastic_url))
+    let mut response = isahc::http::Request::put(format!("{}/links/_bulk", opt.elastic_url))
         .header(CONTENT_TYPE, "application/json")
         .authentication(Authentication::basic())
         .credentials(Credentials::new("elastic", opt.elastic_pass.clone()))
@@ -123,6 +123,10 @@ pub fn bulk_request(opt: &Opt, body: BulkBody) -> Result<()> {
         let mut buffer = String::new();
         response.into_body().read_to_string(&mut buffer)?;
         error!("Got non-success status code, response was\n {}", buffer);
+    } else {
+        // Cleanly read & drop the response to avoid warnings
+        // https://github.com/sagebind/isahc/issues/270#issuecomment-749083844
+        let _ = response.copy_to(std::io::sink());
     }
     Ok(())
 }
