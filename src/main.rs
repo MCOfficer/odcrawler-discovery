@@ -58,6 +58,10 @@ pub struct Opt {
     /// Directory for public files (e.g. stats.json)
     #[structopt(long, default_value = ".")]
     public_dir: PathBuf,
+
+    // Disables the scheduler, allowing for exports etc.
+    #[structopt(long)]
+    disable_scheduler: bool,
 }
 
 #[async_std::main]
@@ -78,11 +82,13 @@ async fn main() {
 
     let db = db::Database::new().await.unwrap();
 
-    let scheduler_db = db.clone();
-    let scheduler_opt = opt.clone();
-    let _scheduler_handle = std::thread::spawn(|| {
-        async_std::task::block_on(scheduler_loop(scheduler_opt, scheduler_db))
-    });
+    if !opt.disable_scheduler {
+        let scheduler_db = db.clone();
+        let scheduler_opt = opt.clone();
+        let _scheduler_handle = std::thread::spawn(|| {
+            async_std::task::block_on(scheduler_loop(scheduler_opt, scheduler_db))
+        });
+    }
 
     let mut shell = Shell::new(());
     shell.new_command("add", "Adds an OD to the database", 1, |io, _, s| {
