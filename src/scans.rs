@@ -79,7 +79,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     info!("Found {} files", files.len());
 
     let is_reachable =
-        crate::check_links::link_is_reachable(&root_url, Duration::from_secs(30)).await;
+        crate::check_links::link_is_reachable(&root_url, Duration::from_secs(30), true).await;
     db.save_scan_result(&root_url, files, is_reachable).await?;
 
     if is_reachable {

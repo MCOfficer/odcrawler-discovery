@@ -5,6 +5,7 @@ use anyhow::Result;
 use futures::StreamExt;
 use isahc::config::SslOption;
 use isahc::prelude::{Configurable, Request, RequestExt};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 use wither::Model;
@@ -15,11 +16,17 @@ pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
     let ods: Mutex<Vec<(OpenDirectory, bool)>> = Mutex::new(vec![]);
 
     info!("Checking ODs concurrently");
+
+    let total = OpenDirectory::collection(&db.db)
+        .estimated_document_count(None)
+        .await?;
+    let count = AtomicUsize::new(0);
+
     db.get_opendirectories(true)
         .await?
         .filter_map(|res| async { res.ok() })
         .for_each_concurrent(128, |od| async {
-            let reachable = link_is_reachable(&od.url, Duration::from_secs(30)).await;
+            let reachable = link_is_reachable(&od.url, Duration::from_secs(20), false).await;
             match ods.lock() {
                 Ok(mut ods) => {
                     ods.push((od, reachable));
@@ -27,6 +34,11 @@ pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
                 Err(_) => {
                     error!("Poisoned Mutex, something went wrong in a different closure");
                 }
+            }
+
+            let current = count.fetch_add(1, Ordering::Relaxed) + 1;
+            if current % 100 == 0 {
+                info!("Checked {}/{} links", current, total);
             }
         })
         .await;
@@ -88,7 +100,7 @@ async fn remove_od_links(opt: &Opt, db: &Database, od: &OpenDirectory) -> Result
     Ok(())
 }
 
-pub async fn link_is_reachable(link: &str, timeout: Duration) -> bool {
+pub async fn link_is_reachable(link: &str, timeout: Duration, log_status: bool) -> bool {
     // Patch for some non-comformant URLs
     let link = link.replace(" ", "%20");
 
@@ -113,7 +125,9 @@ pub async fn link_is_reachable(link: &str, timeout: Duration) -> bool {
     };
 
     if let Ok(response) = request.send_async().await {
-        info!("Got {} for {}", response.status(), link);
+        if log_status {
+            info!("Got {} for {}", response.status(), link);
+        }
         return response.status().is_success() || response.status().is_redirection();
     }
     // let isahc log any issues

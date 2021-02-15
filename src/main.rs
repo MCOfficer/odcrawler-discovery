@@ -9,8 +9,6 @@ use anyhow::Result;
 use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use shrust::{Shell, ShellIO};
-use simplelog::{Config, LevelFilter, WriteLogger};
-use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -65,13 +63,21 @@ pub struct Opt {
 }
 
 #[async_std::main]
-async fn main() {
-    WriteLogger::init(
-        LevelFilter::Info,
-        Config::default(),
-        File::create("odcrawler-discovery.log").unwrap(),
-    )
-    .unwrap();
+async fn main() -> Result<()> {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{} [{}] [{}] {}",
+                chrono::Local::now().format("[%H:%M:%S]"),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Info)
+        .level_for("isahc", log::LevelFilter::Error)
+        .chain(fern::log_file("odcrawler-discovery.log")?)
+        .apply()?;
 
     let mut opt = Opt::from_args();
     let mut odd_scan_dir = opt.odd.parent().unwrap().to_path_buf();
@@ -119,6 +125,8 @@ async fn main() {
         }},
     );
     shell.run_loop(&mut ShellIO::default());
+
+    Ok(())
 }
 
 pub async fn export_all(opt: &Opt, db: &Database) -> Result<()> {
