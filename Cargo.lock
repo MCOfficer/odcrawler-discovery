@@ -2575,9 +2575,9 @@ dependencies = [
 
 [[package]]
 name = "wither"
-version = "0.9.0-alpha.2"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7378a9d3c67d4f115a376a59d9fe9455bc601a7c6a5bfffc13ba6a2ee32bc772"
+checksum = "45e6fce5f641da433789cf4376cd698874666bf2741eb4d72444b4006cc0954a"
 dependencies = [
  "async-trait",
  "chrono",
@@ -2591,9 +2591,9 @@ dependencies = [
 
 [[package]]
 name = "wither_derive"
-version = "0.9.0-alpha.2"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "488ea2062eda3f88ba4c5ac8b4567209bf7ed287b0c9807df6e00ae57edef7a4"
+checksum = "c7cc57cffdfd2239926b5b9e068591944444c71c8e9baa2bd1cbde3492d78973"
 dependencies = [
  "Inflector",
  "async-trait",
