@@ -6,26 +6,19 @@ use wither::bson::{doc, oid::ObjectId, Document};
 use wither::mongodb::options::ClientOptions;
 use wither::mongodb::*;
 use wither::prelude::*;
-use wither::ModelCursor;
+use wither::{Model, ModelCursor};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Model, Serialize, Deserialize)]
+#[model(
+    collection_name = "opendirectories",
+    index(keys = r#"doc!{"url": 1}"#, options = r#"doc!{"unique": true}"#),
+    index(keys = r#"doc!{"unreachable": 1}"#)
+)]
 pub struct OpenDirectory {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
     pub url: String,
     pub unreachable: i32,
-}
-
-impl Model for OpenDirectory {
-    const COLLECTION_NAME: &'static str = "opendirectories";
-
-    fn id(&self) -> Option<ObjectId> {
-        self.id.clone()
-    }
-
-    fn set_id(&mut self, id: ObjectId) {
-        self.id = Some(id)
-    }
 }
 
 impl Migrating for OpenDirectory {
@@ -49,24 +42,16 @@ impl Migrating for OpenDirectory {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Model, Serialize, Deserialize)]
+#[model(
+    index(keys = r#"doc!{"url": 1}"#, options = r#"doc!{"unique": true}"#),
+    index(keys = r#"doc!{"opendirectory": 1}"#)
+)]
 pub struct Link {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
     pub opendirectory: String,
     pub url: String,
-}
-
-impl Model for Link {
-    const COLLECTION_NAME: &'static str = "links";
-
-    fn id(&self) -> Option<ObjectId> {
-        self.id.clone()
-    }
-
-    fn set_id(&mut self, id: ObjectId) {
-        self.id = Some(id)
-    }
 }
 
 impl Migrating for Link {
@@ -88,7 +73,7 @@ impl Migrating for Link {
             }),
             Box::new(wither::IntervalMigration {
                 name: "remove-times-unreachable".to_string(),
-                threshold: chrono::Utc.ymd(2020, 10, 10).and_hms(0, 0, 0),
+                threshold: chrono::Utc.ymd(2021, 3, 1).and_hms(0, 0, 0),
                 filter: doc! {"unreachable": doc!{"$exists": true}},
                 set: None,
                 unset: Some(doc! {"unreachable": ""}),
@@ -109,9 +94,8 @@ impl Database {
         options.app_name = Some("odcrawler-discovery".to_string());
         let db = Client::with_options(options)?.database("odcrawler-discovery");
 
-        // Disabled for this version of wither
-        // OpenDirectory::sync(&client).await?;
-        // Link::sync(&client).await?;
+        OpenDirectory::sync(&db).await?;
+        Link::sync(&db).await?;
         OpenDirectory::migrate(&db).await?;
         Link::migrate(&db).await?;
 
@@ -138,33 +122,27 @@ impl Database {
         is_reachable: bool,
     ) -> Result<()> {
         info!("Saving results");
-        let document = doc! {"url": root_url.to_string()};
+        // TODO: Use a transaction when the driver supports them
 
-        if OpenDirectory::find_one(&self.db, document, None)
-            .await?
-            .is_none()
-        {
-            OpenDirectory {
-                id: None,
-                url: root_url.to_string(),
-                unreachable: if is_reachable { 0 } else { 10 },
-            }
-            .save(&self.db, None)
-            .await?
-        };
-
-        while !files.is_empty() {
-            let split = std::cmp::min(files.len(), 1000);
-            let new_files = files.split_off(split);
-            let chunk = files;
-            files = new_files;
-
-            let docs: Vec<Document> = chunk
-                .iter()
-                .map(|f| doc! {"url": f.url.clone(), "opendirectory": root_url.to_string(), "unreachable": 0})
-                .collect();
-            Link::collection(&self.db).insert_many(docs, None).await?;
+        OpenDirectory {
+            id: None,
+            url: root_url.to_string(),
+            unreachable: if is_reachable { 0 } else { 10 },
         }
+        .save(&self.db, None)
+        .await?;
+
+        let links: Vec<Document> = files
+            .drain(..)
+            .map(move |f| Link {
+                id: None,
+                url: f.url,
+                opendirectory: root_url.to_string(),
+            })
+            .map(|l| l.document_from_instance().unwrap())
+            .collect();
+
+        Link::collection(&self.db).insert_many(links, None).await?;
 
         Ok(())
     }
