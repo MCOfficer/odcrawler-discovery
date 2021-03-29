@@ -1,4 +1,4 @@
-use crate::scans::ODScanFile;
+use crate::scans::OdScanFile;
 use anyhow::Result;
 use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
@@ -52,6 +52,13 @@ pub struct Link {
     pub id: Option<ObjectId>,
     pub opendirectory: String,
     pub url: String,
+}
+
+#[derive(PartialEq)]
+pub enum SaveResult {
+    DuplicateOd,
+    DuplicateLinks,
+    Success,
 }
 
 impl Migrating for Link {
@@ -118,19 +125,25 @@ impl Database {
     pub async fn save_scan_result(
         &mut self,
         root_url: &str,
-        mut files: Vec<ODScanFile>,
+        mut files: Vec<OdScanFile>,
         is_reachable: bool,
-    ) -> Result<()> {
+    ) -> Result<SaveResult> {
         info!("Saving results");
         // TODO: Use a transaction when the driver supports them
-
-        OpenDirectory {
+        let mut od = OpenDirectory {
             id: None,
             url: root_url.to_string(),
             unreachable: if is_reachable { 0 } else { 10 },
+        };
+        if let Some(existing) =
+            OpenDirectory::find_one(&self.db, doc! {"url": &od.url}, None).await?
+        {
+            error!(
+                "Found existing OD, aborting: {}",
+                existing.document_from_instance()?
+            );
+            return Ok(SaveResult::DuplicateOd);
         }
-        .save(&self.db, None)
-        .await?;
 
         let links: Vec<Document> = files
             .drain(..)
@@ -141,9 +154,19 @@ impl Database {
             })
             .map(|l| l.document_from_instance().unwrap())
             .collect();
+        for link in &links {
+            if let Some(existing) = Link::find_one(&self.db, link.clone(), None).await? {
+                error!(
+                    "Found existing link, aborting: {}",
+                    existing.document_from_instance()?
+                );
+                return Ok(SaveResult::DuplicateLinks);
+            }
+        }
 
+        od.save(&self.db, None).await?;
         Link::collection(&self.db).insert_many(links, None).await?;
 
-        Ok(())
+        Ok(SaveResult::Success)
     }
 }

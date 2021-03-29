@@ -1,4 +1,4 @@
-use crate::db::Database;
+use crate::db::{Database, SaveResult};
 use crate::elastic;
 use crate::Opt;
 use anyhow::bail;
@@ -11,21 +11,21 @@ use std::time::Duration;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
-pub struct ODScanResult {
-    pub root: ODScanDirectory,
+pub struct OdScanResult {
+    pub root: OdScanDirectory,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "PascalCase")]
-pub struct ODScanDirectory {
+pub struct OdScanDirectory {
     pub url: String,
-    pub subdirectories: Vec<ODScanDirectory>,
-    pub files: Option<Vec<ODScanFile>>,
+    pub subdirectories: Vec<OdScanDirectory>,
+    pub files: Option<Vec<OdScanFile>>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "PascalCase")]
-pub struct ODScanFile {
+pub struct OdScanFile {
     pub url: String,
 }
 
@@ -58,14 +58,14 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     info!("Deserializing");
     let (root_url, files) = match chosen_file.extension().unwrap().to_string_lossy().as_ref() {
         "json" => {
-            let scan_results: ODScanResult = serde_json::from_reader(reader)?;
+            let scan_results: OdScanResult = serde_json::from_reader(reader)?;
             (
                 scan_results.root.url.clone(),
                 collect_files(scan_results.root),
             )
         }
         "gz" => {
-            let scan_results: ODScanResult = serde_json::from_reader(GzDecoder::new(reader))?;
+            let scan_results: OdScanResult = serde_json::from_reader(GzDecoder::new(reader))?;
             (
                 scan_results.root.url.clone(),
                 collect_files(scan_results.root),
@@ -80,10 +80,16 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
 
     let is_reachable =
         crate::check_links::link_is_reachable(&root_url, Duration::from_secs(30), true).await;
-    db.save_scan_result(&root_url, files, is_reachable).await?;
-
-    if is_reachable {
-        elastic::add_links_from_db(opt, db, &root_url).await?;
+    let save_result = db.save_scan_result(&root_url, files, is_reachable).await?;
+    match save_result {
+        SaveResult::Success => {
+            if is_reachable {
+                elastic::add_links_from_db(opt, db, &root_url).await?;
+            }
+        }
+        _ => {
+            error!("Couldn't save due to existing links/OD")
+        }
     }
 
     let mut processed_dir = chosen_file.parent().unwrap().to_path_buf();
@@ -97,12 +103,12 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     Ok(())
 }
 
-fn collect_files(dir: ODScanDirectory) -> Vec<ODScanFile> {
+fn collect_files(dir: OdScanDirectory) -> Vec<OdScanFile> {
     info!("Extracting files");
     collect_files_recursive(dir)
 }
 
-fn collect_files_recursive(dir: ODScanDirectory) -> Vec<ODScanFile> {
+fn collect_files_recursive(dir: OdScanDirectory) -> Vec<OdScanFile> {
     let mut files = dir.files.unwrap_or_default();
 
     for subdir in dir.subdirectories {
