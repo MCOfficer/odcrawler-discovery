@@ -6,6 +6,7 @@ use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 use std::time::Duration;
@@ -46,7 +47,7 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
         .stderr(Redirection::Merge)
         .stream_stdin()?;
 
-    let ods: Vec<String> = db
+    let ods: HashSet<String> = db
         .get_opendirectories(false)
         .await?
         .filter_map(|r| async { r.ok() })
