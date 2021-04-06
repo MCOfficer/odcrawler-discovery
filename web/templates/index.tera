@@ -8,7 +8,7 @@
         Alive/Total ODs: {{ alive_opendirectories }}/{{ total_opendirectories }}
     </div>
 
-    <a href="/ods">List of all ODs (slow)</a>
+    <a href="./ods">List of all ODs</a>
 
     </body>
 <html>
