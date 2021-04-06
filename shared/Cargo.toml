@@ -1,29 +1,14 @@
 [package]
-name = "odcrawler_discovery"
+name = "shared"
 version = "0.1.0"
 authors = ["MCOfficer <mcofficer@gmx.de>"]
 edition = "2018"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
 anyhow = "1.0"
-async-std = "1.9"
-async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
-fern = "0.6"
-flate2 = "1.0"
-futures = "0.3"
-indicatif = "0.15"
-isahc = "0.9.12"
 log = "0.4"
-rand = "0.8"
-regex = "1"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-shared = { path="shared" }
-shrust = "0.0.7"
-structopt = "0.3"
-subprocess = "0.2"
 wither = { version = "0.9.0", features = ["async-std-runtime"], default_features = false }
-
-[profile.release]
-debug = true

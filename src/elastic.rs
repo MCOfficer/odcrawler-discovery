@@ -1,5 +1,4 @@
-use crate::db::Link;
-use crate::{db, Opt};
+use crate::Opt;
 use anyhow::Result;
 use futures::StreamExt;
 use isahc::auth::{Authentication, Credentials};
@@ -8,6 +7,8 @@ use isahc::prelude::Configurable;
 use isahc::{RequestExt, ResponseExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use shared::db;
+use shared::db::Link;
 use std::io::Read;
 use std::path::PathBuf;
 

@@ -3,11 +3,12 @@ extern crate log;
 #[macro_use]
 extern crate async_trait;
 
-use crate::db::Database;
 use crate::elastic::ElasticLink;
 use anyhow::Result;
 use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
+use shared::db;
+use shared::db::Database;
 use shrust::{Shell, ShellIO};
 use std::io::Write;
 use std::path::PathBuf;
@@ -18,7 +19,6 @@ use wither::bson::doc;
 use wither::Model;
 
 mod check_links;
-mod db;
 mod elastic;
 mod scans;
 mod stats;

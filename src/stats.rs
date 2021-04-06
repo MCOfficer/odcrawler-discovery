@@ -1,11 +1,12 @@
-use crate::db::Database;
-use crate::{db, Opt};
+use crate::Opt;
 use anyhow::{Context, Result};
 use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use shared::db;
+use shared::db::Database;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
@@ -13,13 +14,6 @@ use std::time::Duration;
 use subprocess::{Exec, Redirection};
 use wither::bson::doc;
 use wither::Model;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Stats {
-    total_links: i64,
-    total_opendirectories: i64,
-    alive_opendirectories: i64,
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Dump {
@@ -104,24 +98,7 @@ pub async fn create_dump(opt: &Opt, db: &Database) -> Result<()> {
 pub async fn update_stats(opt: &Opt, db: &Database) -> Result<()> {
     info!("Updating stats");
 
-    let total_links = db::Link::collection(&db.db)
-        .estimated_document_count(None)
-        .await?;
-    let total_opendirectories = db::OpenDirectory::collection(&db.db)
-        .estimated_document_count(None)
-        .await?;
-    let alive_opendirectories = db::OpenDirectory::collection(&db.db)
-        .count_documents(
-            doc! {"unreachable": doc! {"$lt": crate::check_links::DEAD_OD_THRESHOLD}},
-            None,
-        )
-        .await?;
-
-    let stats = Stats {
-        total_opendirectories,
-        total_links,
-        alive_opendirectories,
-    };
+    let stats = db.stats().await?;
     save_json(&opt, &stats, "stats.json")?;
 
     info!("Stats saved");

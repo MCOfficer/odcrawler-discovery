@@ -1,4 +1,3 @@
-use crate::db::{Database, SaveResult};
 use crate::elastic;
 use crate::Opt;
 use anyhow::bail;
@@ -6,6 +5,7 @@ use anyhow::Result;
 use flate2::read::GzDecoder;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
+use shared::db::{Database, SaveResult};
 use std::io::BufReader;
 use std::time::Duration;
 
@@ -56,7 +56,7 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
     let reader = BufReader::new(std::fs::File::open(chosen_file)?);
 
     info!("Deserializing");
-    let (root_url, files) = match chosen_file.extension().unwrap().to_string_lossy().as_ref() {
+    let (root_url, mut files) = match chosen_file.extension().unwrap().to_string_lossy().as_ref() {
         "json" => {
             let scan_results: OdScanResult = serde_json::from_reader(reader)?;
             (
@@ -80,7 +80,15 @@ pub async fn process_scans(opt: &Opt, db: &mut Database) -> Result<()> {
 
     let is_reachable =
         crate::check_links::link_is_reachable(&root_url, Duration::from_secs(30), true).await;
-    let save_result = db.save_scan_result(&root_url, files, is_reachable).await?;
+    let links = files
+        .drain(..)
+        .map(|f| shared::db::Link {
+            id: None,
+            url: f.url,
+            opendirectory: root_url.clone(),
+        })
+        .collect();
+    let save_result = db.save_scan_result(&root_url, links, is_reachable).await?;
     match save_result {
         SaveResult::Success => {
             if is_reachable {

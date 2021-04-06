@@ -1,16 +1,15 @@
-use crate::db::Database;
-use crate::db::OpenDirectory;
 use crate::{elastic, Opt};
 use anyhow::Result;
 use futures::StreamExt;
 use isahc::config::SslOption;
 use isahc::prelude::{Configurable, Request, RequestExt};
+use shared::db::Database;
+use shared::db::OpenDirectory;
+use shared::DEAD_OD_THRESHOLD;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 use wither::Model;
-
-pub const DEAD_OD_THRESHOLD: i32 = 10;
 
 pub async fn check_opendirectories(opt: &Opt, db: &mut Database) -> Result<()> {
     let ods: Mutex<Vec<(OpenDirectory, bool)>> = Mutex::new(vec![]);
