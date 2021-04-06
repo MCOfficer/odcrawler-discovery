@@ -1,4 +1,3 @@
-use crate::scans::OdScanFile;
 use anyhow::Result;
 use chrono::TimeZone;
 use serde::{Deserialize, Serialize};
@@ -7,6 +6,13 @@ use wither::mongodb::options::ClientOptions;
 use wither::mongodb::*;
 use wither::prelude::*;
 use wither::{Model, ModelCursor};
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Stats {
+    total_links: i64,
+    total_opendirectories: i64,
+    alive_opendirectories: i64,
+}
 
 #[derive(Debug, Model, Serialize, Deserialize)]
 #[model(
@@ -113,7 +119,7 @@ impl Database {
         let doc = if dead_ods {
             doc! {}
         } else {
-            doc! { "unreachable": doc! { "$lt": crate::check_links::DEAD_OD_THRESHOLD} }
+            doc! { "unreachable": doc! { "$lt": crate::DEAD_OD_THRESHOLD} }
         };
         Ok(OpenDirectory::find(&self.db, doc, None).await?)
     }
@@ -122,10 +128,31 @@ impl Database {
         Ok(Link::find(&self.db, doc! {"opendirectory": opendirectory}, None).await?)
     }
 
+    pub async fn stats(&self) -> Result<Stats> {
+        let total_links = Link::collection(&self.db)
+            .estimated_document_count(None)
+            .await?;
+        let total_opendirectories = OpenDirectory::collection(&self.db)
+            .estimated_document_count(None)
+            .await?;
+        let alive_opendirectories = OpenDirectory::collection(&self.db)
+            .count_documents(
+                doc! {"unreachable": doc! {"$lt": crate::DEAD_OD_THRESHOLD}},
+                None,
+            )
+            .await?;
+
+        Ok(Stats {
+            alive_opendirectories,
+            total_links,
+            total_opendirectories,
+        })
+    }
+
     pub async fn save_scan_result(
         &mut self,
         root_url: &str,
-        mut files: Vec<OdScanFile>,
+        mut files: Vec<Link>,
         is_reachable: bool,
     ) -> Result<SaveResult> {
         info!("Saving results");
@@ -147,11 +174,6 @@ impl Database {
 
         let links: Vec<Document> = files
             .drain(..)
-            .map(move |f| Link {
-                id: None,
-                url: f.url,
-                opendirectory: root_url.to_string(),
-            })
             .map(|l| l.document_from_instance().unwrap())
             .collect();
         for link in &links {

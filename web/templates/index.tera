@@ -1,0 +1,14 @@
+<html>
+    <body>
+
+    <div>
+        Total Links: {{ total_links }}
+    </div>
+    <div>
+        Alive/Total ODs: {{ alive_opendirectories }}/{{ total_opendirectories }}
+    </div>
+
+    <a href="/ods">List of all ODs (slow)</a>
+
+    </body>
+<html>

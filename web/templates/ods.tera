@@ -1,0 +1,20 @@
+<html>
+    <body>
+
+    <table>
+        <thead>
+            <th>URL</th>
+            <th>Dead</th>
+        </thead>
+        <tbody>
+            {% for od in ods %}
+            <tr>
+                <td>{{ od.url }}</td>
+                <td>{{ od.dead }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    </body>
+<html>
