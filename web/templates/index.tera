@@ -1,14 +1,24 @@
 <html>
     <body>
 
+    <h4>DB</h4>
     <div>
-        Total Links: {{ total_links }}
+        Total Links: {{ db.total_links }}
     </div>
     <div>
-        Alive/Total ODs: {{ alive_opendirectories }}/{{ total_opendirectories }}
+        Alive/Total ODs: {{ db.alive_opendirectories }}/{{ db.total_opendirectories }}
     </div>
-
     <a href="./ods">List of all ODs</a>
+
+    <h4>Server</h4>
+    <div>
+        Load (1/5/15): {{ load_one }} / {{ load_five }} / {{ load_fifteen }}
+    </div>
+    <div>
+        {% set available = mem_available / 1048576 %}
+        {% set percentage =  mem_available * 100 / mem_total %}
+        Memory: {{ available | round }} MiB available ({{ percentage | round }}%)
+    </div>
 
     </body>
 <html>

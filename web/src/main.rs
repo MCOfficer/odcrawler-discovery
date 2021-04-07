@@ -3,11 +3,31 @@ use rocket::{get, routes, Rocket, State};
 use rocket_contrib::json::Json;
 use rocket_contrib::templates::Template;
 use shared::db;
-use shared::db::Stats;
+use shared::db::Stats as DbStats;
+
+#[derive(serde::Serialize)]
+struct Stats {
+    db: DbStats,
+    load_one: f64,
+    load_five: f64,
+    load_fifteen: f64,
+    mem_total: usize,
+    mem_available: usize,
+}
 
 #[get("/json")]
 async fn stats_json(db: State<'_, db::Database>) -> Json<Stats> {
-    Json(db.stats().await.unwrap())
+    let load = mprober_lib::load_average::get_load_average().unwrap();
+    let mem = mprober_lib::memory::free().unwrap().mem;
+    let stats = Stats {
+        db: db.stats().await.unwrap(),
+        load_one: load.one,
+        load_five: load.five,
+        load_fifteen: load.fifteen,
+        mem_total: mem.total,
+        mem_available: mem.available,
+    };
+    Json(stats)
 }
 
 #[get("/")]
