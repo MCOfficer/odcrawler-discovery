@@ -1,3 +1,4 @@
+use mprober_lib::load_average::LoadAverage;
 use rocket::futures::StreamExt;
 use rocket::{get, routes, Rocket, State};
 use rocket_contrib::json::Json;
@@ -17,8 +18,8 @@ struct Stats {
 
 #[get("/json")]
 async fn stats_json(db: State<'_, db::Database>) -> Json<Stats> {
-    let load = mprober_lib::load_average::get_load_average().unwrap();
-    let mem = mprober_lib::memory::free().unwrap().mem;
+    let load = mprober_lib::load_average::get_load_average().unwrap_or_default();
+    let mem = mprober_lib::memory::free().unwrap_or_default().mem;
     let stats = Stats {
         db: db.stats().await.unwrap(),
         load_one: load.one,
