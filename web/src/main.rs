@@ -1,4 +1,3 @@
-use mprober_lib::load_average::LoadAverage;
 use rocket::futures::StreamExt;
 use rocket::{get, routes, Rocket, State};
 use rocket_contrib::json::Json;

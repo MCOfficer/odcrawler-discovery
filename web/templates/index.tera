@@ -15,9 +15,14 @@
         Load (1/5/15): {{ load_one }} / {{ load_five }} / {{ load_fifteen }}
     </div>
     <div>
-        {% set available = mem_available / 1048576 %}
-        {% set percentage =  mem_available * 100 / mem_total %}
-        Memory: {{ available | round }} MiB available ({{ percentage | round }}%)
+        Memory:
+        {% if mem_total %}
+            {% set available = mem_available / 1048576 %}
+            {% set percentage =  mem_available * 100 / mem_total %}
+            {{ available | round }} MiB available ({{ percentage | round }}%)
+        {% else %}
+            failed
+        {% endif %}
     </div>
 
     </body>
