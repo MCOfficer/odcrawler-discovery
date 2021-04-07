@@ -12,7 +12,7 @@
             <tr>
                 <td><a href="{{ od.url }}">{{ od.url }}</a></td>
                 <td>{{ od.dead }}</td>
-                <td><a href="./od?url={{ od.url }}">Click</a></td>
+                <td><a href="./od?url={{ od.url | urlencode_strict }}">Click</a></td>
             </tr>
             {% endfor %}
         </tbody>
