@@ -1,4 +1,12 @@
 <html>
+    <head>
+        <style>
+            th:first-child, td:first-child {
+                max-width: 25rem;
+                word-wrap: break-word;
+            }
+        </style>
+    </head>
     <body>
 
     <table>
