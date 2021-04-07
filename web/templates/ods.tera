@@ -5,12 +5,14 @@
         <thead>
             <th>URL</th>
             <th>Dead</th>
+            <th>Links</th>
         </thead>
         <tbody>
             {% for od in ods %}
             <tr>
-                <td>{{ od.url }}</td>
+                <td><a href="{{ od.url }}">{{ od.url }}</a></td>
                 <td>{{ od.dead }}</td>
+                <td><a href="./od?url={{ od.url }}">Click</a></td>
             </tr>
             {% endfor %}
         </tbody>

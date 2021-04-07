@@ -5,7 +5,7 @@ use rocket_contrib::templates::Template;
 use shared::db;
 use shared::db::Stats;
 
-#[get("/stats.json")]
+#[get("/json")]
 async fn stats_json() -> Json<Stats> {
     let db = db::Database::new().await.unwrap();
     Json(db.stats().await.unwrap())
@@ -28,7 +28,7 @@ struct ODs {
     ods: Vec<OD>,
 }
 
-#[get("/ods.json")]
+#[get("/ods/json")]
 async fn ods_json() -> Json<ODs> {
     let db = db::Database::new().await.unwrap();
     let ods = db
@@ -51,9 +51,37 @@ async fn ods() -> Template {
     Template::render("ods", &ODs { ods })
 }
 
+#[derive(serde::Serialize)]
+struct Links {
+    links: Vec<String>,
+}
+
+#[get("/od/json?<url>")]
+async fn links_json(url: &str) -> Json<Links> {
+    let db = db::Database::new().await.unwrap();
+    let links = db
+        .get_links(&url)
+        .await
+        .unwrap()
+        .filter_map(|r| async { r.ok() })
+        .map(|l| l.url)
+        .collect()
+        .await;
+    Json(Links { links })
+}
+
+#[get("/od?<url>")]
+async fn links(url: &str) -> Template {
+    let links = links_json(url).await.into_inner();
+    Template::render("links", &links)
+}
+
 #[rocket::launch]
 fn launch() -> Rocket {
     rocket::ignite()
-        .mount("/", routes![stats_json, stats, ods_json, ods])
+        .mount(
+            "/",
+            routes![stats_json, stats, ods_json, ods, links_json, links],
+        )
         .attach(Template::fairing())
 }

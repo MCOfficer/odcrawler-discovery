@@ -1,0 +1,11 @@
+<html>
+    <body>
+
+    {% for link in links %}
+       <div>
+           <a href="{{ link }}">{{ link }}</a>
+       </div>
+    {% endfor %}
+
+    </body>
+<html>
