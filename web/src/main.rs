@@ -1,19 +1,18 @@
 use rocket::futures::StreamExt;
-use rocket::{get, routes, Rocket};
+use rocket::{get, routes, Rocket, State};
 use rocket_contrib::json::Json;
 use rocket_contrib::templates::Template;
 use shared::db;
 use shared::db::Stats;
 
 #[get("/json")]
-async fn stats_json() -> Json<Stats> {
-    let db = db::Database::new().await.unwrap();
+async fn stats_json(db: State<'_, db::Database>) -> Json<Stats> {
     Json(db.stats().await.unwrap())
 }
 
 #[get("/")]
-async fn stats() -> Template {
-    let stats = stats_json().await.into_inner();
+async fn stats(db: State<'_, db::Database>) -> Template {
+    let stats = stats_json(db).await.into_inner();
     Template::render("index", &stats)
 }
 
@@ -29,8 +28,7 @@ struct ODs {
 }
 
 #[get("/ods/json")]
-async fn ods_json() -> Json<ODs> {
-    let db = db::Database::new().await.unwrap();
+async fn ods_json(db: State<'_, db::Database>) -> Json<ODs> {
     let ods = db
         .get_opendirectories(true)
         .await
@@ -46,8 +44,8 @@ async fn ods_json() -> Json<ODs> {
 }
 
 #[get("/ods")]
-async fn ods() -> Template {
-    let ods = ods_json().await.into_inner().ods;
+async fn ods(db: State<'_, db::Database>) -> Template {
+    let ods = ods_json(db).await.into_inner().ods;
     Template::render("ods", &ODs { ods })
 }
 
@@ -57,8 +55,7 @@ struct Links {
 }
 
 #[get("/od/json?<url>")]
-async fn links_json(url: &str) -> Json<Links> {
-    let db = db::Database::new().await.unwrap();
+async fn links_json(db: State<'_, db::Database>, url: &str) -> Json<Links> {
     let links = db
         .get_links(&url)
         .await
@@ -71,17 +68,18 @@ async fn links_json(url: &str) -> Json<Links> {
 }
 
 #[get("/od?<url>")]
-async fn links(url: &str) -> Template {
-    let links = links_json(url).await.into_inner();
+async fn links(db: State<'_, db::Database>, url: &str) -> Template {
+    let links = links_json(db, url).await.into_inner();
     Template::render("links", &links)
 }
 
 #[rocket::launch]
-fn launch() -> Rocket {
+async fn launch() -> Rocket {
     rocket::ignite()
         .mount(
             "/",
             routes![stats_json, stats, ods_json, ods, links_json, links],
         )
         .attach(Template::fairing())
+        .manage(db::Database::new().await.unwrap())
 }
