@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
-async-std = "1.11"
+async-std = "1.12"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 fern = "0.6"
